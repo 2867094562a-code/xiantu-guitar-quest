@@ -27,7 +27,7 @@ export function SongLibrary() {
     <AppShell
       eyebrow="弹唱中文流行歌 · 指弹代表曲"
       title="曲目关卡"
-      description="弹唱与指弹统一使用五线谱。每首都可打开麦克风试弹；本机识别不确定时，可按你的本地设置调用 AI 复核。"
+      description="弹唱与指弹统一使用吉他六线谱。每首都可打开麦克风试弹；本机识别不确定时，可按你的本地设置调用 AI 复核。"
     >
       <div className="library-toolbar">
         <div className="path-switcher compact" role="tablist" aria-label="曲目类型">
@@ -65,7 +65,7 @@ export function SongLibrary() {
           </div>
 
           <div className="practice-score">
-            <div className="panel-title"><div><p className="eyebrow">五线谱练习片段</p><h3>{selected.track === "singing" ? "和弦节奏练习谱" : "旋律与指法练习谱"}</h3></div><BookOpen size={21} /></div>
+            <div className="panel-title"><div><p className="eyebrow">吉他六线谱练习片段</p><h3>{selected.track === "singing" ? "和弦节奏练习谱" : "旋律与指法练习谱"}</h3></div><BookOpen size={21} /></div>
             <StaffNotation song={selected} />
             <p>{selected.pattern}</p>
           </div>
@@ -82,7 +82,7 @@ export function SongLibrary() {
           <TrialPlayer key={selected.id} song={selected} />
 
           <div className="unlock-rule"><Check size={19} /><div><span>解锁条件</span><strong>{selected.unlock}</strong></div></div>
-          <div className="copyright-note">弹唱曲显示五线谱和弦节奏教学骨架，不复制原曲旋律；现代指弹曲使用同难度原创五线谱片段。公版旋律与本人拥有使用权的导入谱可按实际音高显示。</div>
+          <div className="copyright-note">弹唱曲显示吉他六线谱和弦节奏教学骨架，不复制原曲旋律；现代指弹曲使用同难度原创六线谱片段。公版旋律与本人拥有使用权的导入谱可按实际把位显示。</div>
           <div className="song-detail-actions">
             <Link href="/" className="secondary-action">加入今日训练 <ArrowRight size={16} /></Link>
             <Link href="/import-score" className="text-button"><ScanLine size={16} />导入完整个人谱</Link>

@@ -719,6 +719,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .practice-score h3 { font-size: 17px; }
 .practice-score > p { margin: 13px 0 0; color: var(--ink-soft); font-size: 11px; }
 .staff-notation-shell { margin-top: 10px; border: 1px solid var(--line); background: #fffef9; overflow-x: auto; }
+.guitar-tab-shell { background: linear-gradient(90deg, rgba(66,104,85,.035), #fffef9 18%, #fffef9 82%, rgba(163,58,44,.035)); }
 .staff-notation { width: 820px; height: 175px; }
 .trial-staff .staff-notation { width: 680px; height: 150px; }
 .staff-notation svg { display: block; width: 100%; height: 100%; }

@@ -1,71 +1,55 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import {
-  Accidental,
-  Annotation,
-  Formatter,
-  Renderer,
-  Stave,
-  StaveNote,
-  Voice,
-} from "vexflow";
+import { Annotation, Formatter, Renderer, TabNote, TabStave, Voice } from "vexflow";
 import type { SongQuest } from "../data/curriculum";
 
-const CHORD_TONES: Record<string, string[]> = {
-  C: ["c/4", "e/4", "g/4"],
-  G: ["g/3", "b/3", "d/4"],
-  D: ["d/4", "f#/4", "a/4"],
-  Dm: ["d/4", "f/4", "a/4"],
-  E: ["e/4", "g#/4", "b/4"],
-  Em: ["e/4", "g/4", "b/4"],
-  A: ["a/3", "c#/4", "e/4"],
-  Am: ["a/3", "c/4", "e/4"],
-  F: ["f/3", "a/3", "c/4"],
-  Fmaj7: ["f/3", "a/3", "c/4", "e/4"],
-  Bm: ["b/3", "d/4", "f#/4"],
+type TabPosition = { str: number; fret: string };
+
+const CHORD_TABS: Record<string, TabPosition[]> = {
+  C: [{ str: 5, fret: "3" }, { str: 4, fret: "2" }, { str: 3, fret: "0" }, { str: 2, fret: "1" }, { str: 1, fret: "0" }],
+  G: [{ str: 6, fret: "3" }, { str: 5, fret: "2" }, { str: 4, fret: "0" }, { str: 3, fret: "0" }, { str: 2, fret: "3" }, { str: 1, fret: "3" }],
+  D: [{ str: 4, fret: "0" }, { str: 3, fret: "2" }, { str: 2, fret: "3" }, { str: 1, fret: "2" }],
+  Dm: [{ str: 4, fret: "0" }, { str: 3, fret: "2" }, { str: 2, fret: "3" }, { str: 1, fret: "1" }],
+  E: [{ str: 6, fret: "0" }, { str: 5, fret: "2" }, { str: 4, fret: "2" }, { str: 3, fret: "1" }, { str: 2, fret: "0" }, { str: 1, fret: "0" }],
+  Em: [{ str: 6, fret: "0" }, { str: 5, fret: "2" }, { str: 4, fret: "2" }, { str: 3, fret: "0" }, { str: 2, fret: "0" }, { str: 1, fret: "0" }],
+  A: [{ str: 5, fret: "0" }, { str: 4, fret: "2" }, { str: 3, fret: "2" }, { str: 2, fret: "2" }, { str: 1, fret: "0" }],
+  Am: [{ str: 5, fret: "0" }, { str: 4, fret: "2" }, { str: 3, fret: "2" }, { str: 2, fret: "1" }, { str: 1, fret: "0" }],
+  Fmaj7: [{ str: 4, fret: "3" }, { str: 3, fret: "2" }, { str: 2, fret: "1" }, { str: 1, fret: "0" }],
+  F: [{ str: 6, fret: "1" }, { str: 5, fret: "3" }, { str: 4, fret: "3" }, { str: 3, fret: "2" }, { str: 2, fret: "1" }, { str: 1, fret: "1" }],
+  Bm: [{ str: 5, fret: "2" }, { str: 4, fret: "4" }, { str: 3, fret: "4" }, { str: 2, fret: "3" }, { str: 1, fret: "2" }],
+};
+
+const NOTE_TABS: Record<string, TabPosition> = {
+  "A2": { str: 5, fret: "0" }, "B2": { str: 5, fret: "2" }, "D2": { str: 6, fret: "10" }, "F#2": { str: 6, fret: "2" }, "G2": { str: 6, fret: "3" },
+  "D3": { str: 4, fret: "0" }, "E3": { str: 4, fret: "2" }, "G3": { str: 3, fret: "0" }, "A3": { str: 3, fret: "2" }, "B3": { str: 3, fret: "4" },
+  "C4": { str: 2, fret: "1" }, "D4": { str: 2, fret: "3" }, "E4": { str: 1, fret: "0" }, "F4": { str: 1, fret: "1" }, "F#4": { str: 1, fret: "2" }, "G4": { str: 1, fret: "3" }, "A4": { str: 1, fret: "5" }, "B4": { str: 2, fret: "0" }, "C5": { str: 1, fret: "8" }, "D5": { str: 1, fret: "10" }, "E5": { str: 1, fret: "12" },
 };
 
 function normalizeChord(chord: string) {
   return chord === "小 F" ? "F" : chord.replace(/\s/g, "");
 }
 
-function vexKey(note: string) {
-  const match = note.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
-  if (!match) return { key: "c/4", accidental: "" };
-  return { key: `${match[1].toLowerCase()}${match[2]}/${match[3]}`, accidental: match[2] };
-}
-
-function addAccidentals(note: StaveNote, keys: string[]) {
-  keys.forEach((key, index) => {
-    const accidental = key.match(/^.[#b]/)?.[0].slice(1);
-    if (accidental) note.addModifier(new Accidental(accidental), index);
-  });
-  return note;
-}
-
 function makeMeasure(
   context: ReturnType<Renderer["getContext"]>,
   x: number,
   width: number,
-  entries: Array<{ keys: string[]; label?: string }>,
+  entries: Array<{ positions: TabPosition[]; label: string }>,
   first: boolean,
   activeIndex: number,
   offset: number,
 ) {
-  const stave = new Stave(x, 42, width);
-  if (first) stave.addClef("treble").addTimeSignature("4/4");
+  const stave = new TabStave(x, 42, width);
+  if (first) stave.addClef("tab").addTimeSignature("4/4");
   stave.setContext(context).draw();
   const notes = entries.map((entry, index) => {
-    const note = addAccidentals(new StaveNote({ clef: "treble", keys: entry.keys, duration: "q" }), entry.keys);
-    if (entry.label) {
-      note.addModifier(new Annotation(entry.label).setVerticalJustification(Annotation.VerticalJustify.TOP));
-    }
+    const note = new TabNote({ positions: entry.positions, duration: "q" });
+    note.addModifier(new Annotation(entry.label).setVerticalJustification(Annotation.VerticalJustify.TOP));
     if (offset + index === activeIndex) note.setStyle({ fillStyle: "#a33a2c", strokeStyle: "#a33a2c" });
     return note;
   });
   const voice = new Voice({ numBeats: 4, beatValue: 4 }).addTickables(notes);
-  new Formatter().joinVoices([voice]).format([voice], width - (first ? 92 : 34));
+  new Formatter().joinVoices([voice]).format([voice], width - (first ? 88 : 30));
   voice.draw(context, stave);
 }
 
@@ -76,13 +60,13 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
       const chords = song.chords?.length ? song.chords : ["C", "G", "Am", "Fmaj7"];
       return Array.from({ length: 8 }, (_, index) => {
         const label = chords[index % chords.length];
-        return { keys: CHORD_TONES[normalizeChord(label)] ?? ["c/4", "e/4", "g/4"], label };
+        return { positions: CHORD_TABS[normalizeChord(label)] ?? CHORD_TABS.C, label };
       });
     }
     const notes = song.trialNotes?.length ? song.trialNotes : ["E4", "G4", "B4", "E5"];
     return Array.from({ length: 8 }, (_, index) => {
-      const parsed = vexKey(notes[index % notes.length]);
-      return { keys: [parsed.key], label: undefined };
+      const label = notes[index % notes.length];
+      return { positions: [NOTE_TABS[label] ?? NOTE_TABS.E4], label };
     });
   }, [song]);
 
@@ -102,10 +86,10 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
   }, [activeIndex, compact, entries]);
 
   return (
-    <div className="staff-notation-shell">
-      <div ref={hostRef} className="staff-notation" aria-label={`${song.title} 五线谱练习片段`} />
+    <div className="staff-notation-shell guitar-tab-shell">
+      <div ref={hostRef} className="staff-notation guitar-tablature" aria-label={`${song.title} 吉他六线谱练习片段`} />
       <div className="staff-note-labels" aria-hidden="true">
-        {entries.map((entry, index) => <span key={index} className={index === activeIndex ? "active" : ""}>{song.track === "singing" ? entry.label : song.trialNotes?.[index % (song.trialNotes?.length || 1)]}</span>)}
+        {entries.map((entry, index) => <span key={index} className={index === activeIndex ? "active" : ""}>{entry.label}</span>)}
       </div>
     </div>
   );
