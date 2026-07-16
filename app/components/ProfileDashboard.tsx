@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenCheck, CalendarDays, Clock3, LogIn, LogOut, Music, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { BookOpenCheck, CalendarDays, Check, Clock3, Copy, KeyRound, LogIn, LogOut, Music, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "./AppShell";
 
@@ -33,14 +33,19 @@ export function ProfileDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<ProgressData>({ sessions: [], progress: [] });
   const [saving, setSaving] = useState(false);
+  const [syncCode, setSyncCode] = useState("");
+  const [restoreCode, setRestoreCode] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/me").then((response) => response.json()),
-      fetch("/api/progress").then((response) => response.json()),
-    ]).then(([me, progress]) => {
+      fetch("/api/me").then((response) => response.json()).catch(() => ({ signedIn: false, signInHref: "/profile" })),
+      fetch("/api/progress").then((response) => response.json()).catch(() => ({ sessions: [], progress: [] })),
+      fetch("/api/session").then((response) => response.json()).catch(() => ({ syncCode: "" })),
+    ]).then(([me, progress, session]) => {
       setProfile(me as Profile);
       setHistory(progress as ProgressData);
+      setSyncCode((session as { syncCode?: string }).syncCode ?? "");
     }).catch(() => setProfile({ signedIn: false, signInHref: "/signin-with-chatgpt?return_to=%2Fprofile" }));
   }, []);
 
@@ -56,18 +61,42 @@ export function ProfileDashboard() {
     setSaving(false);
   };
 
+  const copySyncCode = async () => {
+    if (!syncCode) return;
+    await navigator.clipboard.writeText(syncCode);
+    setSyncMessage("同步码已复制，请放在安全的位置保存。");
+  };
+
+  const restoreCloudProfile = async () => {
+    setSaving(true);
+    setSyncMessage("");
+    const response = await fetch("/api/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ syncCode: restoreCode }),
+    });
+    const data = await response.json() as { error?: string };
+    if (!response.ok) {
+      setSyncMessage(data.error ?? "恢复失败，请检查同步码。");
+      setSaving(false);
+      return;
+    }
+    setSyncMessage("云端档案已恢复，正在载入练习数据……");
+    window.setTimeout(() => window.location.reload(), 500);
+  };
+
   return (
     <AppShell
       eyebrow="个人修习档案"
       title="你的弦途"
-      description="登录后，闯关进度、练习记录和个人导入曲谱会跟随你的账号保存。"
+      description="闯关进度、练习记录和个人导入曲谱会保存到 Vercel 云端；同步码可在其他设备恢复同一份档案。"
     >
       {!profile?.signedIn ? (
         <section className="auth-gate">
           <div className="auth-mark"><UserRound size={32} /></div>
           <h2>登录，保留每一次练习</h2>
-          <p>使用 ChatGPT 账号登录后即可跨设备同步等级、连续练习天数、个人曲谱与人工校正结果。</p>
-          <Link className="primary-action" href={profile?.signInHref ?? "/signin-with-chatgpt?return_to=%2Fprofile"}><LogIn size={18} />使用 ChatGPT 登录</Link>
+          <p>连接云端档案后即可同步等级、连续练习天数、个人曲谱与人工校正结果。</p>
+          <Link className="primary-action" href={profile?.signInHref ?? "/profile"}><LogIn size={18} />连接云端档案</Link>
           <small><ShieldCheck size={14} />仅保存训练所需信息，不公开你的个人曲谱。</small>
         </section>
       ) : (
@@ -75,8 +104,8 @@ export function ProfileDashboard() {
           <section className="profile-summary">
             <div className="profile-identity">
               <span className="profile-avatar">{profile.user?.displayName?.slice(0, 1).toUpperCase()}</span>
-              <div><h2>{profile.user?.displayName}</h2><p>{profile.user?.email}</p></div>
-              <Link href={profile.signOutHref ?? "/signout-with-chatgpt?return_to=%2F"} className="icon-text-button"><LogOut size={16} />退出</Link>
+              <div><h2>{profile.user?.displayName}</h2><p>{profile.user?.email.endsWith("@xiantu.local") ? "Vercel 云端档案已连接" : profile.user?.email}</p></div>
+              <Link href={profile.signOutHref ?? "/api/session/reset?return_to=%2F"} className="icon-text-button"><LogOut size={16} />新建档案</Link>
             </div>
             <div className="profile-stats">
               <div><Sparkles size={19} /><span>当前等级</span><strong>Lv. {profile.user?.currentLevel}</strong></div>
@@ -94,6 +123,20 @@ export function ProfileDashboard() {
               ))}
             </div>
             <p className="quiet-copy">今日闯关会按这个目标自动分配基础、和弦、节奏与曲目时间。</p>
+          </section>
+
+          <section className="profile-panel sync-panel">
+            <div className="panel-title"><div><p className="eyebrow">跨设备恢复</p><h2>云端同步码</h2></div><KeyRound size={22} /></div>
+            <div className="sync-code-row">
+              <input type="password" readOnly value={syncCode} aria-label="当前云端同步码" />
+              <button className="icon-text-button" disabled={!syncCode} onClick={copySyncCode}><Copy size={16} />复制</button>
+            </div>
+            <div className="sync-restore-row">
+              <input value={restoreCode} onChange={(event) => setRestoreCode(event.target.value)} placeholder="输入另一台设备的同步码" aria-label="恢复云端档案同步码" />
+              <button className="secondary-action" disabled={saving || !restoreCode.trim()} onClick={restoreCloudProfile}><Check size={16} />恢复档案</button>
+            </div>
+            <p className="quiet-copy">同步码等同于档案钥匙，请勿公开。恢复后，本设备会切换到对应的练习记录和曲谱。</p>
+            {syncMessage && <p className="sync-message">{syncMessage}</p>}
           </section>
 
           <section className="profile-panel history-panel">

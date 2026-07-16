@@ -105,7 +105,7 @@ export function AppShell({
             </>
           ) : (
             <Link href={me?.signInHref ?? "/profile"} className="user-link">
-              <LogIn size={17} /><span>登录存进度</span>
+              <LogIn size={17} /><span>连接云端档案</span>
             </Link>
           )}
         </div>

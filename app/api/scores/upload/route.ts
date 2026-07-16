@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { ensureUser } from "../../../server/current-user";
@@ -32,8 +32,8 @@ export async function POST(request: Request) {
   if (!(file instanceof File) || typeof rawAnalysis !== "string") {
     return NextResponse.json({ error: "请选择曲谱文件并完成识别" }, { status: 400 });
   }
-  if (file.size > 15 * 1024 * 1024) {
-    return NextResponse.json({ error: "单个文件不能超过 15MB" }, { status: 413 });
+  if (file.size > 4 * 1024 * 1024) {
+    return NextResponse.json({ error: "Vercel 云端单个曲谱不能超过 4MB" }, { status: 413 });
   }
   if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
     return NextResponse.json({ error: "仅支持 PNG、JPG、WebP 或 PDF" }, { status: 415 });
@@ -49,9 +49,10 @@ export async function POST(request: Request) {
   const user = await ensureUser(identity);
   const id = crypto.randomUUID();
   const objectKey = `${user.id}/${Date.now()}-${safeFileName(file.name)}`;
-  await env.SCORES.put(objectKey, file.stream(), {
-    httpMetadata: { contentType: file.type },
-    customMetadata: { owner: user.id, scoreId: id },
+  const storedFile = await put(objectKey, file, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType: file.type,
   });
 
   const now = new Date();
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     userId: user.id,
     title: (analysis.title || file.name.replace(/\.[^.]+$/, "")).slice(0, 120),
     fileName: file.name,
-    objectKey,
+    objectKey: storedFile.url,
     contentType: file.type,
     track: analysis.track === "fingerstyle" ? "fingerstyle" : "singing",
     tempo: analysis.tempo ? Math.round(analysis.tempo) : null,

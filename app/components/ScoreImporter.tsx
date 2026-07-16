@@ -207,7 +207,7 @@ export function ScoreImporter() {
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const analyze = async (selected: File) => {
-    if (selected.size > 15 * 1024 * 1024) { setPhase("error"); setMessage("文件超过 15MB，请压缩后再试。"); return; }
+    if (selected.size > 4 * 1024 * 1024) { setPhase("error"); setMessage("文件超过 4MB，请压缩后再试。"); return; }
     setFile(selected);
     setPhase("loading");
     setProgress(8);
@@ -298,7 +298,7 @@ export function ScoreImporter() {
             <button className="score-dropzone" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); chooseFile(event.dataTransfer.files[0]); }}>
               <span><Upload size={28} /></span>
               <strong>点击或拖入曲谱</strong>
-              <small>PNG、JPG、WebP、PDF · 最大 15MB</small>
+              <small>PNG、JPG、WebP、PDF · 最大 4MB</small>
             </button>
           ) : (
             <div className="score-preview">

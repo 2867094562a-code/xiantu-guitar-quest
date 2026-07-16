@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export type ChatGPTUser = {
@@ -15,11 +15,66 @@ const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
+const DEVICE_COOKIE = "xiantu-device-session";
+const DEVICE_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
+
+function createDeviceToken() {
+  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll("-", "");
+}
+
+async function getDeviceToken() {
+  const cookieStore = await cookies();
+  const existing = cookieStore.get(DEVICE_COOKIE)?.value;
+  if (existing && DEVICE_TOKEN_PATTERN.test(existing)) return existing;
+  const created = createDeviceToken();
+  cookieStore.set(DEVICE_COOKIE, created, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365 * 2,
+  });
+  return created;
+}
+
+export async function deviceIdentityFromSyncCode(syncCode: string): Promise<ChatGPTUser | null> {
+  const normalized = syncCode.trim().toLowerCase();
+  if (!DEVICE_TOKEN_PATTERN.test(normalized)) return null;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return {
+    displayName: "弦途学员",
+    email: `device-${hash}@xiantu.local`,
+    fullName: null,
+  };
+}
+
+export async function getDeviceSyncCode() {
+  return getDeviceToken();
+}
+
+export async function setDeviceSyncCode(syncCode: string) {
+  const normalized = syncCode.trim().toLowerCase();
+  if (!DEVICE_TOKEN_PATTERN.test(normalized)) return false;
+  const cookieStore = await cookies();
+  cookieStore.set(DEVICE_COOKIE, normalized, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365 * 2,
+  });
+  return true;
+}
+
+export async function resetDeviceSyncCode() {
+  return setDeviceSyncCode(createDeviceToken());
+}
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!email) return null;
+  if (!email) return deviceIdentityFromSyncCode(await getDeviceToken());
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =
@@ -45,13 +100,12 @@ export async function requireChatGPTUser(
 }
 
 export function chatGPTSignInPath(returnTo: string): string {
-  const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+  return safeRelativeReturnPath(returnTo);
 }
 
 export function chatGPTSignOutPath(returnTo = "/"): string {
   const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_OUT_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+  return `/api/session/reset?return_to=${encodeURIComponent(safeReturnTo)}`;
 }
 
 function safeRelativeReturnPath(value: string): string {

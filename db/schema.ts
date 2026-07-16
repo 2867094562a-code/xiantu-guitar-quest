@@ -1,6 +1,6 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const users = sqliteTable("users", {
+export const users = pgTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   displayName: text("display_name").notNull(),
@@ -8,11 +8,11 @@ export const users = sqliteTable("users", {
   currentLevel: integer("current_level").notNull().default(1),
   streakDays: integer("streak_days").notNull().default(0),
   totalXp: integer("total_xp").notNull().default(0),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
-export const courseProgress = sqliteTable("course_progress", {
+export const courseProgress = pgTable("course_progress", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   track: text("track", { enum: ["singing", "fingerstyle"] }).notNull(),
@@ -20,11 +20,11 @@ export const courseProgress = sqliteTable("course_progress", {
   status: text("status", { enum: ["locked", "ready", "active", "completed"] }).notNull().default("ready"),
   stars: integer("stars").notNull().default(0),
   bestScore: integer("best_score").notNull().default(0),
-  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
-export const practiceSessions = sqliteTable("practice_sessions", {
+export const practiceSessions = pgTable("practice_sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   exerciseType: text("exercise_type", { enum: ["tuning", "spider", "chord", "rhythm", "song", "fingerstyle"] }).notNull(),
@@ -33,20 +33,20 @@ export const practiceSessions = sqliteTable("practice_sessions", {
   bpm: integer("bpm"),
   score: integer("score"),
   painScore: integer("pain_score"),
-  completedAt: integer("completed_at", { mode: "timestamp_ms" }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
-export const dailyPracticeStates = sqliteTable("daily_practice_states", {
+export const dailyPracticeStates = pgTable("daily_practice_states", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   practiceDate: text("practice_date").notNull(),
   stateJson: text("state_json").notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 }, (table) => [
   uniqueIndex("daily_practice_user_date_unique").on(table.userId, table.practiceDate),
 ]);
 
-export const scoreImports = sqliteTable("score_imports", {
+export const scoreImports = pgTable("score_imports", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
@@ -63,6 +63,6 @@ export const scoreImports = sqliteTable("score_imports", {
   confidence: integer("confidence").notNull().default(0),
   recognizedText: text("recognized_text"),
   status: text("status", { enum: ["draft", "reviewed", "ready"] }).notNull().default("draft"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });

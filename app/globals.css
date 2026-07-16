@@ -407,7 +407,7 @@ main { width: min(1480px, calc(100% - 7vw)); margin: 0 auto; padding: 28px 0 46p
 
 /* Version 2: curriculum, user system, score import, and compact daily training. */
 select, textarea { font: inherit; color: inherit; }
-select, input[type="text"], input[type="number"], textarea {
+select, input[type="text"], input[type="number"], input[type="password"], textarea {
   border: 1px solid var(--line-dark);
   background: rgba(251, 250, 246, 0.72);
 }
@@ -442,6 +442,7 @@ select, input[type="text"], input[type="number"], textarea {
 .primary-action:disabled { opacity: 0.5; cursor: wait; }
 .secondary-action, .icon-text-button { background: transparent; }
 .secondary-action:hover, .icon-text-button:hover { background: var(--ink); color: var(--white-ink); }
+.secondary-action:disabled, .icon-text-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .quiet-copy { color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
 .empty-state { color: var(--ink-soft); line-height: 1.7; margin: 0; padding: 24px; text-align: center; }
 .segmented-control.wide { grid-template-columns: repeat(3, 1fr); }
@@ -768,6 +769,11 @@ select, input[type="text"], input[type="number"], textarea {
 .profile-stats strong { font: 17px Georgia, serif; }
 .profile-panel { padding: 20px; }
 .profile-panel > .panel-title { margin-bottom: 18px; }
+.sync-panel { display: grid; align-content: start; }
+.sync-code-row, .sync-restore-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 10px; }
+.sync-code-row input, .sync-restore-row input { min-width: 0; height: 42px; padding: 0 11px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.sync-code-row .icon-text-button, .sync-restore-row .secondary-action { min-width: 108px; }
+.sync-message { margin: 4px 0 0; color: var(--jade); font-size: 11px; line-height: 1.5; }
 .history-panel { padding: 20px; }
 .history-list { border-top: 1px solid var(--line); }
 .history-list > div { min-height: 48px; display: grid; grid-template-columns: 0.7fr 1.3fr auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); font-size: 11px; }
@@ -880,6 +886,8 @@ select, input[type="text"], input[type="number"], textarea {
   .profile-stats > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .profile-identity { grid-template-columns: 55px 1fr; }
   .profile-identity .icon-text-button { grid-column: 1 / 3; width: 100%; }
+  .sync-code-row, .sync-restore-row { grid-template-columns: 1fr; }
+  .sync-code-row .icon-text-button, .sync-restore-row .secondary-action { width: 100%; }
   .history-list > div { grid-template-columns: 0.7fr 1.3fr; }
   .history-list time { grid-column: 2; }
   .target-string-label { top: 35px; }
