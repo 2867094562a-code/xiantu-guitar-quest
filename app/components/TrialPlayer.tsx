@@ -4,6 +4,7 @@ import { Check, Mic, MicOff, Pause, RotateCcw, Signal, Sparkles, Volume2, X } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SongQuest } from "../data/curriculum";
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
+import { usePositiveFeedback } from "../hooks/usePositiveFeedback";
 import { StaffNotation } from "./StaffNotation";
 
 type TrialMark = "idle" | "correct" | "missed";
@@ -66,6 +67,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
   const [score, setScore] = useState(0);
   const [recordingUrl, setRecordingUrl] = useState("");
   const [recordingBars, setRecordingBars] = useState<number[]>([]);
+  const { feedback, celebrate, resetFeedback } = usePositiveFeedback();
   const intervalRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
   const hitRef = useRef(false);
@@ -122,6 +124,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
       const targetIndex = aiTargetIndexRef.current;
       if (normalizeTarget(detected) !== normalizeTarget(targets[targetIndex]) || aiCorrectedRef.current.has(targetIndex)) return;
       aiCorrectedRef.current.add(targetIndex);
+      celebrate(isChordTrial ? "和弦命中" : "音符命中");
       if (running && targetIndex === currentIndexRef.current) {
         hitRef.current = true;
       } else if (marksRef.current[targetIndex] !== "correct") {
@@ -137,12 +140,13 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     if (normalizeTarget(detected) !== normalizeTarget(expected)) return;
     if (hitRef.current) return;
     hitRef.current = true;
+    celebrate(isChordTrial ? "和弦命中" : "音符命中");
     const index = currentIndexRef.current;
     const timer = window.setTimeout(() => {
       setMarks((items) => items.map((mark, markIndex) => markIndex === index ? "correct" : mark));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [confidence, detected, isChordTrial, running, source, targets]);
+  }, [celebrate, confidence, detected, isChordTrial, running, source, targets]);
 
   const startTrial = async () => {
     if (running) { stopTrial(); return; }
@@ -176,6 +180,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     hitRef.current = false;
     aiTargetIndexRef.current = -1;
     aiCorrectedRef.current.clear();
+    resetFeedback();
     setRunning(true);
 
     let beat = 0;
@@ -228,6 +233,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     hitRef.current = false;
     aiTargetIndexRef.current = -1;
     aiCorrectedRef.current.clear();
+    resetFeedback();
     setScore(0);
     setMarks(targets.map(() => "idle"));
   };
@@ -241,6 +247,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
 
       <div className="trial-staff">
         <StaffNotation song={song} activeIndex={currentIndex} compact />
+        {feedback && <div className="positive-feedback trial-feedback" key={feedback.id} role="status"><Check size={16} /><span>{feedback.message}</span><strong>{feedback.combo} 连击</strong></div>}
         <div className="trial-result-row" aria-label="各音符识别结果">
           {targets.map((target, index) => (
             <span key={`${target}-${index}`} className={`${index === currentIndex ? "active " : ""}${marks[index]}`}>

@@ -30,6 +30,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { chordPairs, songQuests, spiderPatterns, strumPatterns } from "../data/curriculum";
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
+import { usePositiveFeedback } from "../hooks/usePositiveFeedback";
 import { AppShell } from "./AppShell";
 import { ChordDiagram } from "./ChordDiagram";
 import { AudioCalibrationWizard } from "./AudioCalibrationWizard";
@@ -168,6 +169,7 @@ export function PracticeGame() {
   const [strumExtras, setStrumExtras] = useState(0);
   const [reviewNote, setReviewNote] = useState("");
   const [preparationSeconds, setPreparationSeconds] = useState(0);
+  const { feedback, celebrate, resetFeedback } = usePositiveFeedback();
   const [memoryReady, setMemoryReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"loading" | "synced" | "local" | "failed">("loading");
   const cleanSwitchesRef = useRef(0);
@@ -308,9 +310,9 @@ export function PracticeGame() {
     if (detectedChord !== currentChord || chordConfidence < 52) return;
     if (recognizedPhaseRef.current === currentChordPhase) return;
     recognizedPhaseRef.current = currentChordPhase;
-    const timer = window.setTimeout(() => setCleanSwitches((value) => value + 1), 0);
+    const timer = window.setTimeout(() => { setCleanSwitches((value) => value + 1); celebrate("和弦命中"); }, 0);
     return () => window.clearTimeout(timer);
-  }, [activeTask, chordConfidence, chordListening, currentChord, currentChordPhase, detectedChord, running]);
+  }, [activeTask, celebrate, chordConfidence, chordListening, currentChord, currentChordPhase, detectedChord, running]);
 
   useEffect(() => {
     if (chordAiChecking) chordAiTargetRef.current = { phase: currentChordPhase, chord: currentChord };
@@ -321,9 +323,9 @@ export function PracticeGame() {
     if (chordSource !== "ai" || chordConfidence < 42 || detectedChord !== aiTarget.chord || aiTarget.phase < 0) return;
     if (recognizedPhaseRef.current === aiTarget.phase) return;
     recognizedPhaseRef.current = aiTarget.phase;
-    const timer = window.setTimeout(() => setCleanSwitches((value) => value + 1), 0);
+    const timer = window.setTimeout(() => { setCleanSwitches((value) => value + 1); celebrate("AI 复核通过"); }, 0);
     return () => window.clearTimeout(timer);
-  }, [chordConfidence, chordSource, detectedChord]);
+  }, [celebrate, chordConfidence, chordSource, detectedChord]);
 
   useEffect(() => {
     if (!running || activeTask !== "strum" || !strumListening || strumOnsetCount <= lastOnsetCountRef.current) return;
@@ -333,10 +335,10 @@ export function PracticeGame() {
     const step = selectedStrum.steps[beat % selectedStrum.steps.length];
     const timer = window.setTimeout(() => {
       if (step.direction === "rest") setStrumExtras((value) => value + 1);
-      else setStrumHits((value) => value + 1);
+      else { setStrumHits((value) => value + 1); celebrate("扫弦命中"); }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [activeTask, beat, running, selectedStrum.steps, strumListening, strumOnsetCount]);
+  }, [activeTask, beat, celebrate, running, selectedStrum.steps, strumListening, strumOnsetCount]);
 
   const saveSession = useCallback((exerciseType: "spider" | "chord" | "rhythm", exerciseId: string, seconds: number, extra?: { score?: number }) => {
     fetch("/api/progress", {
@@ -387,12 +389,14 @@ export function PracticeGame() {
           setRunning(false);
           setSessionDone(true);
           setCompleted((items) => items.includes("spider") ? items : [...items, "spider"]);
+          celebrate("本组稳定完成");
           saveSession("spider", selectedPattern.id, duration * sets);
           return 0;
         }
 
         if (activeTask === "spider" && sessionMode === "练习") {
           setSessionMode("休息");
+          celebrate(`第 ${currentSet} 组完成`);
           return rest;
         }
 
@@ -402,7 +406,7 @@ export function PracticeGame() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTask, chordDuration, currentSet, duration, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, selectedStrum.id, sessionDone, sessionMode, sets, stopChordRecognition, stopStrumRecognition, strumDuration, strumHits]);
+  }, [activeTask, celebrate, chordDuration, currentSet, duration, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, selectedStrum.id, sessionDone, sessionMode, sets, stopChordRecognition, stopStrumRecognition, strumDuration, strumHits]);
 
   const resetSession = () => {
     setRunning(false);
@@ -420,6 +424,7 @@ export function PracticeGame() {
     setStrumHits(0);
     setStrumExtras(0);
     setPreparationSeconds(0);
+    resetFeedback();
     setSessionDone(false);
     setSecondsLeft(activeTask === "chord" ? chordDuration : activeTask === "strum" ? strumDuration : duration);
   };
@@ -436,6 +441,7 @@ export function PracticeGame() {
     setStrumHits(0);
     setStrumExtras(0);
     setPreparationSeconds(0);
+    resetFeedback();
     setSecondsLeft(id === "chord" ? chordDuration : id === "strum" ? strumDuration : duration);
   };
 
@@ -601,6 +607,7 @@ export function PracticeGame() {
               )}
               <div className="console-timer"><span>{isPreparing ? "准备" : sessionDone ? "完成" : sessionMode}</span><strong>{isPreparing ? formatTime(preparationSeconds) : formatTime(secondsLeft)}</strong></div>
               {isPreparing && <p className="prepare-countdown">调整坐姿与右手位置，{preparationSeconds} 秒后从第 1 拍开始</p>}
+              {feedback && <div className="positive-feedback" key={feedback.id} role="status"><Check size={16} /><span>{feedback.message}</span><strong>{feedback.combo} 连击</strong></div>}
               {activeTask !== "strum" && <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>}
               {activeTask === "chord" && (
                 <div className={`mic-judgement ${detectedChord === currentChord ? "correct" : ""}`}>
