@@ -169,3 +169,15 @@ export const spiderPatterns = [
   { id: "1324", label: "1-3-2-4 独立", value: "1 3 2 4", level: 2 },
   { id: "1423", label: "1-4-2-3 跨指", value: "1 4 2 3", level: 3 },
 ];
+
+export type StrumStep = {
+  direction: "down" | "up" | "rest";
+  accent?: boolean;
+};
+
+export const strumPatterns: Array<{ id: string; label: string; level: number; steps: StrumStep[]; tip: string }> = [
+  { id: "quarter-down", label: "四分音符全下扫", level: 1, steps: [{ direction: "down", accent: true }, { direction: "rest" }, { direction: "down" }, { direction: "rest" }, { direction: "down" }, { direction: "rest" }, { direction: "down" }, { direction: "rest" }], tip: "手臂小幅摆动，拨片或指甲只擦过弦面，不要向琴体里戳。" },
+  { id: "eighth-alternate", label: "八分音符上下交替", level: 1, steps: [{ direction: "down", accent: true }, { direction: "up" }, { direction: "down" }, { direction: "up" }, { direction: "down" }, { direction: "up" }, { direction: "down" }, { direction: "up" }], tip: "下扫落在数字，上扫落在“&”；右手持续摆动，不因换和弦停住。" },
+  { id: "pop-basic", label: "流行基础型：下 下上 上下上", level: 2, steps: [{ direction: "down", accent: true }, { direction: "rest" }, { direction: "down" }, { direction: "up" }, { direction: "rest" }, { direction: "up" }, { direction: "down" }, { direction: "up" }], tip: "空拍时手仍然经过琴弦，只是不碰弦；先用闷音练准再加入和弦。" },
+  { id: "backbeat", label: "二四拍重音", level: 3, steps: [{ direction: "down" }, { direction: "up" }, { direction: "down", accent: true }, { direction: "up" }, { direction: "down" }, { direction: "up" }, { direction: "down", accent: true }, { direction: "up" }], tip: "第 2、4 拍稍加重量，重音来自速度变化，不是手腕突然用力。" },
+];

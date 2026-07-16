@@ -4,6 +4,7 @@ import { Check, Mic, MicOff, Pause, RotateCcw, Signal, Sparkles, X } from "lucid
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SongQuest } from "../data/curriculum";
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
+import { StaffNotation } from "./StaffNotation";
 
 type TrialMark = "idle" | "correct" | "missed";
 
@@ -22,13 +23,18 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     const source = isChordTrial ? (song.chords ?? ["C", "G", "Am", "F"]) : (song.trialNotes ?? ["E4", "G4", "B4", "E5"]);
     return Array.from({ length: 8 }, (_, index) => source[index % source.length]);
   }, [isChordTrial, song.chords, song.trialNotes]);
-  const candidates = useMemo(() => isChordTrial ? [...new Set(targets)] : [], [isChordTrial, targets]);
+  const candidates = useMemo(() => [...new Set(targets)], [targets]);
   const {
     listening,
     detected,
     confidence,
     signal,
     error,
+    source,
+    calibration,
+    aiChecking,
+    aiProvider,
+    aiError,
     start: startRecognition,
     stop: stopRecognition,
     clear: clearRecognition,
@@ -40,9 +46,17 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
   const intervalRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
   const hitRef = useRef(false);
+  const marksRef = useRef<TrialMark[]>(marks);
+  const aiTargetIndexRef = useRef(-1);
+  const aiCorrectedRef = useRef(new Set<number>());
   const audioRef = useRef<AudioContext | null>(null);
   const bpm = trainingTempo(song.trainingBpm);
   const beatsPerTarget = isChordTrial ? 4 : 2;
+
+  useEffect(() => { marksRef.current = marks; }, [marks]);
+  useEffect(() => {
+    if (aiChecking) aiTargetIndexRef.current = currentIndexRef.current;
+  }, [aiChecking]);
 
   const playClick = useCallback((beat: number) => {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -73,7 +87,22 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
   }, [stopRecognition]);
 
   useEffect(() => {
-    if (!running || !detected || confidence < (isChordTrial ? 50 : 68)) return;
+    if (!detected || confidence < (isChordTrial ? 42 : 56)) return;
+    if (source === "ai" && aiTargetIndexRef.current >= 0) {
+      const targetIndex = aiTargetIndexRef.current;
+      if (normalizeTarget(detected) !== normalizeTarget(targets[targetIndex]) || aiCorrectedRef.current.has(targetIndex)) return;
+      aiCorrectedRef.current.add(targetIndex);
+      if (running && targetIndex === currentIndexRef.current) {
+        hitRef.current = true;
+      } else if (marksRef.current[targetIndex] !== "correct") {
+        setScore((value) => value + 1);
+      }
+      const aiTimer = window.setTimeout(() => {
+        setMarks((items) => items.map((mark, markIndex) => markIndex === targetIndex ? "correct" : mark));
+      }, 0);
+      return () => window.clearTimeout(aiTimer);
+    }
+    if (!running) return;
     const expected = targets[currentIndexRef.current];
     if (normalizeTarget(detected) !== normalizeTarget(expected)) return;
     if (hitRef.current) return;
@@ -83,7 +112,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
       setMarks((items) => items.map((mark, markIndex) => markIndex === index ? "correct" : mark));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [confidence, detected, isChordTrial, running, targets]);
+  }, [confidence, detected, isChordTrial, running, source, targets]);
 
   const startTrial = async () => {
     if (running) { stopTrial(); return; }
@@ -96,6 +125,8 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     setCurrentIndex(0);
     currentIndexRef.current = 0;
     hitRef.current = false;
+    aiTargetIndexRef.current = -1;
+    aiCorrectedRef.current.clear();
     setRunning(true);
 
     let beat = 0;
@@ -130,6 +161,8 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     setCurrentIndex(0);
     currentIndexRef.current = 0;
     hitRef.current = false;
+    aiTargetIndexRef.current = -1;
+    aiCorrectedRef.current.clear();
     setScore(0);
     setMarks(targets.map(() => "idle"));
   };
@@ -138,17 +171,19 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     <section className="trial-player" aria-label={`${song.title} 麦克风试弹`}>
       <header>
         <div><p className="eyebrow">麦克风试弹</p><h3>{isChordTrial ? "跟随和弦完成一轮" : "跟随音符完成短句"}</h3></div>
-        <span className={listening ? "trial-mic live" : "trial-mic"}>{listening ? <Mic size={15} /> : <MicOff size={15} />}{listening ? "正在识别" : "等待开始"}</span>
+        <span className={listening ? "trial-mic live" : "trial-mic"}>{listening ? <Mic size={15} /> : <MicOff size={15} />}{calibration === "calibrating" ? "正在测底噪" : aiChecking ? `${aiProvider || "AI"} 复核中` : listening ? "正在识别" : "等待开始"}</span>
       </header>
 
-      <div className={isChordTrial ? "trial-sequence chords" : "trial-sequence notes"}>
-        {targets.map((target, index) => (
-          <span key={`${target}-${index}`} className={`${index === currentIndex ? "active " : ""}${marks[index]}`}>
-            <small>{index + 1}</small>
-            <strong>{target}</strong>
-            {marks[index] === "correct" ? <Check size={14} /> : marks[index] === "missed" ? <X size={14} /> : null}
-          </span>
-        ))}
+      <div className="trial-staff">
+        <StaffNotation song={song} activeIndex={currentIndex} compact />
+        <div className="trial-result-row" aria-label="各音符识别结果">
+          {targets.map((target, index) => (
+            <span key={`${target}-${index}`} className={`${index === currentIndex ? "active " : ""}${marks[index]}`}>
+              <small>{index + 1}</small><strong>{target}</strong>
+              {marks[index] === "correct" ? <Check size={14} /> : marks[index] === "missed" ? <X size={14} /> : null}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="trial-readout">
@@ -156,6 +191,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
         <div><span>麦克风听到</span><strong className={normalizeTarget(detected) === normalizeTarget(targets[currentIndex]) ? "good" : ""}>{detected || "--"}</strong></div>
         <div><span>置信度</span><strong>{confidence}%</strong></div>
         <div><span><Signal size={13} />输入信号</span><strong>{signal}%</strong></div>
+        <div><span>判断来源</span><strong>{source === "ai" ? `AI · ${aiProvider}` : source === "local" ? "本机" : "--"}</strong></div>
         <div><span>正确</span><strong>{score} / 8</strong></div>
       </div>
 
@@ -165,6 +201,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
         <p><Sparkles size={14} />{bpm} BPM · {isChordTrial ? "每 4 拍扫一次目标和弦" : "每 2 拍弹一个目标音"}</p>
       </div>
       {error && <p className="recognition-error">{error}</p>}
+      {aiError && <p className="recognition-error">AI 复核未完成：{aiError}</p>}
       <small className="trial-disclaimer">{isChordTrial ? "识别器评估吉他和弦，不评估歌声。" : `${song.trialSource ?? "原创技术片段"}，用于音准和节拍检测。`}</small>
     </section>
   );

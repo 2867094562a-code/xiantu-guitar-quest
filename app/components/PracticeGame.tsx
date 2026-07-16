@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowDown,
+  ArrowUp,
   Check,
   CircleCheck,
   Cloud,
@@ -26,11 +28,12 @@ import {
   Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { chordPairs, songQuests, spiderPatterns } from "../data/curriculum";
+import { chordPairs, songQuests, spiderPatterns, strumPatterns } from "../data/curriculum";
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
 import { AppShell } from "./AppShell";
+import { ChordDiagram } from "./ChordDiagram";
 
-type ExerciseId = "tune" | "spider" | "chord" | "rhythm" | "song" | "review";
+type ExerciseId = "tune" | "spider" | "chord" | "strum" | "rhythm" | "song" | "review";
 type SessionMode = "练习" | "休息";
 
 type DailyPracticeSnapshot = {
@@ -51,19 +54,24 @@ type DailyPracticeSnapshot = {
   beatsPerChord: number;
   chordDuration: number;
   cleanSwitches: number;
+  strumPattern: string;
+  strumDuration: number;
+  strumHits: number;
+  strumExtras: number;
   reviewNote: string;
 };
 
 const planMinutes: Record<number, Record<ExerciseId, number>> = {
-  60: { tune: 5, spider: 8, chord: 12, rhythm: 10, song: 20, review: 5 },
-  90: { tune: 7, spider: 12, chord: 18, rhythm: 15, song: 30, review: 8 },
-  120: { tune: 10, spider: 15, chord: 25, rhythm: 20, song: 40, review: 10 },
+  60: { tune: 5, spider: 8, chord: 10, strum: 10, rhythm: 7, song: 15, review: 5 },
+  90: { tune: 7, spider: 12, chord: 16, strum: 15, rhythm: 10, song: 22, review: 8 },
+  120: { tune: 10, spider: 15, chord: 22, strum: 20, rhythm: 15, song: 28, review: 10 },
 };
 
 const taskMeta: Array<{ id: ExerciseId; title: string; detail: string; icon: typeof Guitar }> = [
   { id: "tune", title: "调音与放松", detail: "逐弦调准，肩、腕与拇指不夹紧", icon: HeartPulse },
   { id: "spider", title: "稳拍爬格子", detail: "短组练习，在酸胀出现前结束", icon: Hand },
   { id: "chord", title: "和弦转换", detail: "用完整拍位换和弦，不追求蛮力", icon: Dumbbell },
+  { id: "strum", title: "扫弦训练", detail: "上下扫、空拍与重音都落在正确细分", icon: ArrowDown },
   { id: "rhythm", title: "节奏听练", detail: "四分与八分音符，口数拍子", icon: Gauge },
   { id: "song", title: "中文歌分段", detail: "技术落进歌曲，只练一个明确段落", icon: Music2 },
   { id: "review", title: "录音复盘", detail: "记录一处进步和一个明日重点", icon: ListChecks },
@@ -82,7 +90,7 @@ function localDateKey() {
   return `${year}-${month}-${day}`;
 }
 
-function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
+function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4, subdivisions = 1) {
   const [beat, setBeat] = useState(0);
   const contextRef = useRef<AudioContext | null>(null);
 
@@ -92,14 +100,16 @@ function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
     const context = contextRef.current;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.frequency.value = index % accentEvery === 0 ? 1120 : 760;
+    const fullBeat = index % subdivisions === 0;
+    const beatIndex = Math.floor(index / subdivisions);
+    oscillator.frequency.value = fullBeat ? (beatIndex % accentEvery === 0 ? 1120 : 760) : 540;
     gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.24, context.currentTime + 0.004);
+    gain.gain.exponentialRampToValueAtTime(fullBeat ? 0.24 : 0.1, context.currentTime + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.055);
     oscillator.connect(gain).connect(context.destination);
     oscillator.start();
     oscillator.stop(context.currentTime + 0.06);
-  }, [accentEvery]);
+  }, [accentEvery, subdivisions]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -109,9 +119,9 @@ function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
       current += 1;
       setBeat(current);
       playClick(current);
-    }, 60000 / bpm);
+    }, 60000 / bpm / subdivisions);
     return () => window.clearInterval(timer);
-  }, [bpm, enabled, playClick]);
+  }, [bpm, enabled, playClick, subdivisions]);
 
   useEffect(() => () => { contextRef.current?.close(); }, []);
   return enabled ? beat : 0;
@@ -151,15 +161,23 @@ export function PracticeGame() {
   const [beatsPerChord, setBeatsPerChord] = useState(4);
   const [chordDuration, setChordDuration] = useState(60);
   const [cleanSwitches, setCleanSwitches] = useState(0);
+  const [strumPattern, setStrumPattern] = useState("quarter-down");
+  const [strumDuration, setStrumDuration] = useState(60);
+  const [strumHits, setStrumHits] = useState(0);
+  const [strumExtras, setStrumExtras] = useState(0);
   const [reviewNote, setReviewNote] = useState("");
   const [memoryReady, setMemoryReady] = useState(false);
   const cleanSwitchesRef = useRef(0);
   const lastCloudSyncRef = useRef(0);
   const practiceDateRef = useRef(localDateKey());
   const recognizedPhaseRef = useRef(-1);
-  const beat = usePracticeClick(bpm, running && sessionMode === "练习", 4);
+  const chordAiTargetRef = useRef({ phase: -1, chord: "" });
+  const recognizedStrumPhaseRef = useRef(-1);
+  const lastOnsetCountRef = useRef(0);
+  const beat = usePracticeClick(bpm, running && sessionMode === "练习", 4, activeTask === "strum" ? 2 : 1);
   const selectedPair = chordPairs.find((pair) => pair.id === chordPair) ?? chordPairs[0];
   const selectedPattern = spiderPatterns.find((item) => item.id === pattern) ?? spiderPatterns[0];
+  const selectedStrum = strumPatterns.find((item) => item.id === strumPattern) ?? strumPatterns[0];
   const chordCandidates = useMemo(() => [selectedPair.from, selectedPair.to], [selectedPair.from, selectedPair.to]);
   const {
     listening: chordListening,
@@ -169,12 +187,27 @@ export function PracticeGame() {
     start: startChordRecognition,
     stop: stopChordRecognition,
     clear: clearChordRecognition,
+    source: chordSource,
+    calibration: chordCalibration,
+    aiChecking: chordAiChecking,
+    aiProvider: chordAiProvider,
+    aiError: chordAiError,
   } = useMusicRecognition("chord", chordCandidates);
+  const {
+    listening: strumListening,
+    signal: strumSignal,
+    error: strumError,
+    calibration: strumCalibration,
+    onsetCount: strumOnsetCount,
+    start: startStrumRecognition,
+    stop: stopStrumRecognition,
+    clear: clearStrumRecognition,
+  } = useMusicRecognition("attack");
 
   const plan = planMinutes[goal];
   const totalDone = completed.reduce((sum, id) => sum + plan[id], 0);
   const dailyProgress = Math.round((totalDone / goal) * 100);
-  const currentDuration = activeTask === "chord" ? chordDuration : duration;
+  const currentDuration = activeTask === "chord" ? chordDuration : activeTask === "strum" ? strumDuration : duration;
   const progress = sessionMode === "休息"
     ? ((rest - secondsLeft) / rest) * 100
     : ((currentDuration - secondsLeft) / currentDuration) * 100;
@@ -203,6 +236,10 @@ export function PracticeGame() {
     if ([1, 2, 4].includes(snapshot.beatsPerChord ?? 0)) setBeatsPerChord(snapshot.beatsPerChord!);
     if (typeof snapshot.chordDuration === "number") setChordDuration(Math.min(300, Math.max(30, snapshot.chordDuration)));
     if (typeof snapshot.cleanSwitches === "number") setCleanSwitches(Math.max(0, snapshot.cleanSwitches));
+    if (strumPatterns.some((item) => item.id === snapshot.strumPattern)) setStrumPattern(snapshot.strumPattern!);
+    if (typeof snapshot.strumDuration === "number") setStrumDuration(Math.min(300, Math.max(30, snapshot.strumDuration)));
+    if (typeof snapshot.strumHits === "number") setStrumHits(Math.max(0, snapshot.strumHits));
+    if (typeof snapshot.strumExtras === "number") setStrumExtras(Math.max(0, snapshot.strumExtras));
     if (typeof snapshot.reviewNote === "string") setReviewNote(snapshot.reviewNote.slice(0, 1000));
     setRunning(false);
   }, []);
@@ -237,7 +274,8 @@ export function PracticeGame() {
     const snapshot: DailyPracticeSnapshot = {
       goal, activeTask, completed, bpm, duration, sets, rest, pattern, pain,
       sessionMode, secondsLeft, currentSet, sessionDone, chordPair,
-      beatsPerChord, chordDuration, cleanSwitches, reviewNote,
+      beatsPerChord, chordDuration, cleanSwitches, strumPattern, strumDuration,
+      strumHits, strumExtras, reviewNote,
     };
     const timer = window.setTimeout(() => {
       const updatedAt = Date.now();
@@ -252,7 +290,7 @@ export function PracticeGame() {
       }
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [activeTask, beatsPerChord, bpm, chordDuration, chordPair, cleanSwitches, completed, currentSet, duration, goal, memoryReady, pain, pattern, rest, reviewNote, running, secondsLeft, sessionDone, sessionMode, sets]);
+  }, [activeTask, beatsPerChord, bpm, chordDuration, chordPair, cleanSwitches, completed, currentSet, duration, goal, memoryReady, pain, pattern, rest, reviewNote, running, secondsLeft, sessionDone, sessionMode, sets, strumDuration, strumExtras, strumHits, strumPattern]);
 
   useEffect(() => { cleanSwitchesRef.current = cleanSwitches; }, [cleanSwitches]);
 
@@ -265,7 +303,33 @@ export function PracticeGame() {
     return () => window.clearTimeout(timer);
   }, [activeTask, chordConfidence, chordListening, currentChord, currentChordPhase, detectedChord, running]);
 
-  const saveSession = useCallback((exerciseType: "spider" | "chord", exerciseId: string, seconds: number, extra?: { score?: number }) => {
+  useEffect(() => {
+    if (chordAiChecking) chordAiTargetRef.current = { phase: currentChordPhase, chord: currentChord };
+  }, [chordAiChecking, currentChord, currentChordPhase]);
+
+  useEffect(() => {
+    const aiTarget = chordAiTargetRef.current;
+    if (chordSource !== "ai" || chordConfidence < 42 || detectedChord !== aiTarget.chord || aiTarget.phase < 0) return;
+    if (recognizedPhaseRef.current === aiTarget.phase) return;
+    recognizedPhaseRef.current = aiTarget.phase;
+    const timer = window.setTimeout(() => setCleanSwitches((value) => value + 1), 0);
+    return () => window.clearTimeout(timer);
+  }, [chordConfidence, chordSource, detectedChord]);
+
+  useEffect(() => {
+    if (!running || activeTask !== "strum" || !strumListening || strumOnsetCount <= lastOnsetCountRef.current) return;
+    lastOnsetCountRef.current = strumOnsetCount;
+    if (recognizedStrumPhaseRef.current === beat) return;
+    recognizedStrumPhaseRef.current = beat;
+    const step = selectedStrum.steps[beat % selectedStrum.steps.length];
+    const timer = window.setTimeout(() => {
+      if (step.direction === "rest") setStrumExtras((value) => value + 1);
+      else setStrumHits((value) => value + 1);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTask, beat, running, selectedStrum.steps, strumListening, strumOnsetCount]);
+
+  const saveSession = useCallback((exerciseType: "spider" | "chord" | "rhythm", exerciseId: string, seconds: number, extra?: { score?: number }) => {
     fetch("/api/progress", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -295,6 +359,15 @@ export function PracticeGame() {
           return 0;
         }
 
+        if (activeTask === "strum") {
+          setRunning(false);
+          stopStrumRecognition();
+          setSessionDone(true);
+          setCompleted((items) => items.includes("strum") ? items : [...items, "strum"]);
+          saveSession("rhythm", selectedStrum.id, strumDuration, { score: strumHits });
+          return 0;
+        }
+
         if (activeTask === "spider" && sessionMode === "练习" && currentSet === sets) {
           setRunning(false);
           setSessionDone(true);
@@ -314,29 +387,39 @@ export function PracticeGame() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets, stopChordRecognition]);
+  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, selectedStrum.id, sessionDone, sessionMode, sets, stopChordRecognition, stopStrumRecognition, strumDuration, strumHits]);
 
   const resetSession = () => {
     setRunning(false);
     stopChordRecognition();
     clearChordRecognition();
+    stopStrumRecognition();
+    clearStrumRecognition();
     recognizedPhaseRef.current = -1;
+    chordAiTargetRef.current = { phase: -1, chord: "" };
+    recognizedStrumPhaseRef.current = -1;
+    lastOnsetCountRef.current = 0;
     setSessionMode("练习");
     setCurrentSet(1);
     setCleanSwitches(0);
+    setStrumHits(0);
+    setStrumExtras(0);
     setSessionDone(false);
-    setSecondsLeft(activeTask === "chord" ? chordDuration : duration);
+    setSecondsLeft(activeTask === "chord" ? chordDuration : activeTask === "strum" ? strumDuration : duration);
   };
 
   const selectTask = (id: ExerciseId) => {
     if (activeTask === "chord") stopChordRecognition();
+    if (activeTask === "strum") stopStrumRecognition();
     setActiveTask(id);
     setRunning(false);
     setSessionDone(false);
     setSessionMode("练习");
     setCurrentSet(1);
     setCleanSwitches(0);
-    setSecondsLeft(id === "chord" ? chordDuration : duration);
+    setStrumHits(0);
+    setStrumExtras(0);
+    setSecondsLeft(id === "chord" ? chordDuration : id === "strum" ? strumDuration : duration);
   };
 
   const changeSpiderDuration = (value: number) => {
@@ -349,9 +432,14 @@ export function PracticeGame() {
     if (activeTask === "chord" && !running) setSecondsLeft(value);
   };
 
+  const changeStrumDuration = (value: number) => {
+    setStrumDuration(value);
+    if (activeTask === "strum" && !running) setSecondsLeft(value);
+  };
+
   const changePain = (value: number) => {
     setPain(value);
-    if (value >= 3) {
+    if (value >= 3 && activeTask !== "strum") {
       setRunning(false);
       stopChordRecognition();
     }
@@ -361,11 +449,19 @@ export function PracticeGame() {
     if (running) {
       setRunning(false);
       if (activeTask === "chord") stopChordRecognition();
+      if (activeTask === "strum") stopStrumRecognition();
       return;
     }
     if (activeTask === "chord") {
       recognizedPhaseRef.current = -1;
+      chordAiTargetRef.current = { phase: -1, chord: "" };
       const microphoneReady = await startChordRecognition();
+      if (!microphoneReady) return;
+    }
+    if (activeTask === "strum") {
+      recognizedStrumPhaseRef.current = -1;
+      lastOnsetCountRef.current = 0;
+      const microphoneReady = await startStrumRecognition();
       if (!microphoneReady) return;
     }
     setRunning(true);
@@ -412,11 +508,11 @@ export function PracticeGame() {
         </div>
       </section>
 
-      {(activeTask === "spider" || activeTask === "chord") ? (
+      {(activeTask === "spider" || activeTask === "chord" || activeTask === "strum") ? (
         <section className="training-workbench">
           <aside className="training-settings">
             <div className="panel-title">
-              <div><p className="eyebrow">自定义练习</p><h2>{activeTask === "spider" ? "爬格子参数" : "和弦转换参数"}</h2></div>
+              <div><p className="eyebrow">自定义练习</p><h2>{activeTask === "spider" ? "爬格子参数" : activeTask === "chord" ? "和弦转换参数" : "扫弦训练参数"}</h2></div>
               <TimerReset size={22} />
             </div>
 
@@ -429,12 +525,19 @@ export function PracticeGame() {
                 <label className="field-select"><span>指序</span><select disabled={running} value={pattern} onChange={(event) => setPattern(event.target.value)}>{spiderPatterns.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
                 <button disabled={running} className="prescription-button" onClick={() => { setRunning(false); setBpm(60); changeSpiderDuration(45); setSets(3); setRest(75); setPattern("1234"); setCurrentSet(1); setSessionMode("练习"); setSessionDone(false); }}>恢复当前建议：60 BPM · 45 秒 × 3</button>
               </>
-            ) : (
+            ) : activeTask === "chord" ? (
               <>
                 <label className="field-select"><span>和弦组合</span><select disabled={running} value={chordPair} onChange={(event) => setChordPair(event.target.value)}>{chordPairs.map((pair) => <option key={pair.id} value={pair.id}>{pair.from} → {pair.to} · Lv.{pair.level}</option>)}</select></label>
                 <label className="field-select"><span>每个和弦保持</span><select disabled={running} value={beatsPerChord} onChange={(event) => setBeatsPerChord(Number(event.target.value))}><option value={4}>4 拍</option><option value={2}>2 拍</option><option value={1}>1 拍</option></select></label>
                 <NumberStepper label="练习时间" value={chordDuration} min={30} max={300} step={15} suffix=" 秒" disabled={running} onChange={changeChordDuration} />
                 <p className="setting-tip">{selectedPair.tip}</p>
+                <Link href="/songs#ai-recognition-settings" className="settings-link">配置本机 AI 复核 <ArrowRight size={15} /></Link>
+              </>
+            ) : (
+              <>
+                <label className="field-select"><span>扫弦型</span><select disabled={running} value={strumPattern} onChange={(event) => setStrumPattern(event.target.value)}>{strumPatterns.map((item) => <option key={item.id} value={item.id}>{item.label} · Lv.{item.level}</option>)}</select></label>
+                <NumberStepper label="练习时间" value={strumDuration} min={30} max={300} step={15} suffix=" 秒" disabled={running} onChange={changeStrumDuration} />
+                <p className="setting-tip">{selectedStrum.tip}</p>
               </>
             )}
           </aside>
@@ -442,12 +545,12 @@ export function PracticeGame() {
           <div className="practice-console">
             <header className="console-header">
               <div>
-                <p>{activeTask === "spider" ? `第 ${currentSet} / ${sets} 组 · ${sessionMode}` : `${selectedPair.from} ↔ ${selectedPair.to}`}</p>
-                <h2>{activeTask === "spider" ? selectedPattern.label : "听拍完成转换"}</h2>
-                <span>{bpm} BPM · 每拍一次点击{activeTask === "chord" ? ` · 每 ${beatsPerChord} 拍换和弦` : " · 每拍一个音"}</span>
+                <p>{activeTask === "spider" ? `第 ${currentSet} / ${sets} 组 · ${sessionMode}` : activeTask === "chord" ? `${selectedPair.from} ↔ ${selectedPair.to}` : `八分音符细分 · ${selectedStrum.label}`}</p>
+                <h2>{activeTask === "spider" ? selectedPattern.label : activeTask === "chord" ? "看和弦图，听拍完成转换" : "跟随方向完成扫弦"}</h2>
+                <span>{bpm} BPM{activeTask === "chord" ? ` · 每 ${beatsPerChord} 拍换和弦` : activeTask === "strum" ? " · 数字为正拍，& 为反拍" : " · 每拍一个音"}</span>
               </div>
               <div className="challenge-actions">
-                <button className="icon-button primary" disabled={pain >= 3 || sessionDone} onClick={toggleSession} aria-label={running ? "暂停" : activeTask === "chord" ? "开启麦克风并开始" : "开始"}>{running ? <Pause /> : activeTask === "chord" ? <Mic /> : <Play />}</button>
+                <button className="icon-button primary" disabled={(pain >= 3 && activeTask !== "strum") || sessionDone} onClick={toggleSession} aria-label={running ? "暂停" : activeTask === "chord" || activeTask === "strum" ? "开启麦克风并开始" : "开始"}>{running ? <Pause /> : activeTask === "chord" || activeTask === "strum" ? <Mic /> : <Play />}</button>
                 <button className="icon-button" onClick={resetSession} aria-label="重置"><RotateCcw /></button>
               </div>
             </header>
@@ -458,33 +561,53 @@ export function PracticeGame() {
                 <div className="finger-sequence">
                   {selectedPattern.value.split(" ").map((finger, index) => <span key={`${finger}-${index}`} className={beat % 4 === index && running ? "active" : ""}>{finger}</span>)}
                 </div>
-              ) : (
+              ) : activeTask === "chord" ? (
                 <div className="chord-switch-display">
-                  <span>现在按</span>
-                  <strong>{running ? currentChord : selectedPair.from}</strong>
-                  <small>下一个：{currentChord === selectedPair.from ? selectedPair.to : selectedPair.from}</small>
+                  <ChordDiagram chord={selectedPair.from} active={!running || currentChord === selectedPair.from} />
+                  <span className="switch-arrow">↔</span>
+                  <ChordDiagram chord={selectedPair.to} active={running && currentChord === selectedPair.to} />
+                </div>
+              ) : (
+                <div className="strum-pattern-stage" aria-label={selectedStrum.label}>
+                  {selectedStrum.steps.map((step, index) => (
+                    <span key={`${step.direction}-${index}`} className={`${running && beat % selectedStrum.steps.length === index ? "active " : ""}${step.accent ? "accent" : ""}${step.direction === "rest" ? "rest" : ""}`}>
+                      <small>{index % 2 === 0 ? index / 2 + 1 : "&"}</small>
+                      {step.direction === "down" ? <ArrowDown /> : step.direction === "up" ? <ArrowUp /> : <i>空</i>}
+                      <b>{step.accent ? "重" : ""}</b>
+                    </span>
+                  ))}
                 </div>
               )}
               <div className="console-timer"><span>{sessionDone ? "完成" : sessionMode}</span><strong>{formatTime(secondsLeft)}</strong></div>
-              <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>
+              {activeTask !== "strum" && <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>}
               {activeTask === "chord" && (
                 <div className={`mic-judgement ${detectedChord === currentChord ? "correct" : ""}`}>
-                  <span className="mic-state">{chordListening ? <Mic size={16} /> : <MicOff size={16} />}{chordListening ? "正在听" : "麦克风未开启"}</span>
+                  <span className="mic-state">{chordListening ? <Mic size={16} /> : <MicOff size={16} />}{chordCalibration === "calibrating" ? "正在测底噪" : chordAiChecking ? `${chordAiProvider || "AI"} 复核中` : chordListening ? "正在听" : "麦克风未开启"}</span>
                   <span><small>目标</small><strong>{currentChord}</strong></span>
                   <span><small>听到</small><strong>{detectedChord || "--"}</strong></span>
-                  <span><small>置信度</small><strong>{chordConfidence || 0}%</strong></span>
+                  <span><small>置信度/来源</small><strong>{chordConfidence || 0}% · {chordSource === "ai" ? "AI" : chordSource === "local" ? "本机" : "--"}</strong></span>
                   <span className="auto-score"><Check size={16} />正确转换 <strong>{cleanSwitches}</strong></span>
+                </div>
+              )}
+              {activeTask === "strum" && (
+                <div className="strum-judgement">
+                  <span className="mic-state">{strumListening ? <Mic size={16} /> : <MicOff size={16} />}{strumCalibration === "calibrating" ? "正在测底噪" : strumListening ? "正在听扫弦" : "麦克风未开启"}</span>
+                  <span><small>输入信号</small><strong>{strumSignal}%</strong></span>
+                  <span><small>拍点命中</small><strong>{strumHits}</strong></span>
+                  <span className={strumExtras ? "warn" : ""}><small>空拍误扫</small><strong>{strumExtras}</strong></span>
                 </div>
               )}
               {sessionDone && <div className="completion-stamp"><CircleCheck size={24} />本项完成</div>}
             </div>
             <div className="session-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>
             {activeTask === "chord" && chordError && <p className="recognition-error">{chordError}</p>}
+            {activeTask === "chord" && chordAiError && <p className="recognition-error">AI 复核未完成：{chordAiError}</p>}
+            {activeTask === "strum" && strumError && <p className="recognition-error">{strumError}</p>}
 
             <div className={pain >= 3 ? "pain-check warning" : "pain-check compact"}>
               <div className="pain-copy">
                 <span>大鱼际酸胀</span><strong>{pain} / 10</strong>
-                <small>{pain < 3 ? "0-2 可继续，保持轻按；你目前一分钟会酸，优先用 45 秒短组。" : "已自动暂停。今天改练右手节奏、听力或歌曲结构。"}</small>
+                <small>{pain < 3 ? "0-2 可继续，保持轻按；你目前一分钟会酸，优先用 45 秒短组。" : activeTask === "strum" ? "左手先放松，可改用空弦闷音继续右手扫弦。" : "已自动暂停。今天改练右手节奏、听力或歌曲结构。"}</small>
               </div>
               <div><input aria-label="大鱼际酸胀程度" type="range" min="0" max="10" value={pain} onChange={(event) => changePain(Number(event.target.value))} /><div className="pain-scale"><span>无感</span><span>注意 3</span><span>停止</span></div></div>
               {pain >= 3 ? <ShieldAlert size={24} /> : <Volume2 size={22} />}

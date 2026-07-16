@@ -3,25 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Check, ChevronRight, Gauge, Guitar, LibraryBig, Music2, ScanLine, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { songQuests, type LearningTrack, type SongQuest } from "../data/curriculum";
+import { songQuests, type LearningTrack } from "../data/curriculum";
+import { AiRecognitionSettings } from "./AiRecognitionSettings";
 import { AppShell } from "./AppShell";
+import { ChordDiagramSet } from "./ChordDiagram";
+import { StaffNotation } from "./StaffNotation";
 import { TrialPlayer } from "./TrialPlayer";
-
-function ScoreSkeleton({ song }: { song: SongQuest }) {
-  if (song.track === "singing") {
-    return (
-      <div className="score-skeleton">
-        <div className="score-time"><strong>4</strong><strong>4</strong></div>
-        {[0, 1, 2, 3].map((beat) => <span key={beat} className={beat === 0 ? "accent" : ""}><i>{beat + 1}</i><b>{song.chords?.[beat % (song.chords?.length || 1)]}</b></span>)}
-      </div>
-    );
-  }
-  return (
-    <div className="fingerstyle-skeleton">
-      <span><b>P</b><i>低音</i></span><em>+</em><span><b>i</b><i>3 弦</i></span><em>+</em><span><b>m</b><i>2 弦</i></span><em>+</em><span><b>a</b><i>1 弦</i></span>
-    </div>
-  );
-}
 
 export function SongLibrary() {
   const [track, setTrack] = useState<LearningTrack>("singing");
@@ -40,7 +27,7 @@ export function SongLibrary() {
     <AppShell
       eyebrow="弹唱中文流行歌 · 指弹代表曲"
       title="曲目关卡"
-      description="弹唱路线使用中文流行歌，指弹路线从公版名曲递进到现代代表曲。每首都可打开麦克风完成短片段试弹。"
+      description="弹唱与指弹统一使用五线谱。每首都可打开麦克风试弹；本机识别不确定时，可按你的本地设置调用 AI 复核。"
     >
       <div className="library-toolbar">
         <div className="path-switcher compact" role="tablist" aria-label="曲目类型">
@@ -50,6 +37,8 @@ export function SongLibrary() {
         <label className="level-filter"><span>难度</span><select value={level} onChange={(event) => setLevel(Number(event.target.value))}><option value={0}>全部等级</option>{[1,2,3,4,5,6,7,8].map((value) => <option key={value} value={value}>Lv. {value}</option>)}</select></label>
         <Link href="/import-score" className="primary-action"><ScanLine size={17} />导入我的曲谱</Link>
       </div>
+
+      <AiRecognitionSettings />
 
       <div className="library-layout">
         <section className="song-list-panel" aria-label="歌曲列表">
@@ -78,17 +67,22 @@ export function SongLibrary() {
           </div>
 
           <div className="practice-score">
-            <div className="panel-title"><div><p className="eyebrow">节奏/指法骨架</p><h3>{selected.track === "singing" ? "四拍循环练习谱" : "PIMA 分层练习谱"}</h3></div><BookOpen size={21} /></div>
-            <ScoreSkeleton song={selected} />
+            <div className="panel-title"><div><p className="eyebrow">五线谱练习片段</p><h3>{selected.track === "singing" ? "和弦节奏练习谱" : "旋律与指法练习谱"}</h3></div><BookOpen size={21} /></div>
+            <StaffNotation song={selected} />
             <p>{selected.pattern}</p>
           </div>
 
-          {selected.chords && <div className="chord-bank"><span>建议和弦</span>{selected.chords.map((chord) => <strong key={chord}>{chord}</strong>)}</div>}
+          {selected.chords && (
+            <section className="score-chord-section" aria-label="本曲和弦图">
+              <div><span>本页和弦图</span><small>圆圈为空弦，叉号不弹，数字为左手手指</small></div>
+              <ChordDiagramSet chords={selected.chords} />
+            </section>
+          )}
 
           <TrialPlayer key={selected.id} song={selected} />
 
           <div className="unlock-rule"><Check size={19} /><div><span>解锁条件</span><strong>{selected.unlock}</strong></div></div>
-          <div className="copyright-note">弹唱曲提供和弦教学骨架；现代指弹曲使用同难度原创试弹片段，不复制完整商业曲谱。你拥有使用权的谱可导入后识别拍号、速度与谱表结构。</div>
+          <div className="copyright-note">弹唱曲显示五线谱和弦节奏教学骨架，不复制原曲旋律；现代指弹曲使用同难度原创五线谱片段。公版旋律与本人拥有使用权的导入谱可按实际音高显示。</div>
           <div className="song-detail-actions">
             <Link href="/" className="secondary-action">加入今日训练 <ArrowRight size={16} /></Link>
             <Link href="/import-score" className="text-button"><ScanLine size={16} />导入完整个人谱</Link>

@@ -27,13 +27,19 @@ body {
   letter-spacing: 0;
 }
 
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 a { color: inherit; text-decoration: none; }
 
 button:focus-visible,
 a:focus-visible,
 input:focus-visible {
+  outline: 3px solid rgba(163, 58, 44, 0.28);
+  outline-offset: 3px;
+}
+
+select:focus-visible,
+textarea:focus-visible {
   outline: 3px solid rgba(163, 58, 44, 0.28);
   outline-offset: 3px;
 }
@@ -461,7 +467,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .goal-control { width: 290px; grid-template-columns: repeat(3, 1fr); }
 .daily-progress { height: 4px; background: rgba(29, 33, 31, 0.1); margin: 15px 0 0; }
 .daily-progress span { display: block; height: 100%; background: var(--cinnabar); transition: width 240ms ease; }
-.today-tasks { display: grid; grid-template-columns: repeat(6, 1fr); margin: 0 -20px; }
+.today-tasks { display: grid; grid-template-columns: repeat(7, 1fr); margin: 0 -20px; }
 .today-tasks > button {
   min-width: 0;
   min-height: 78px;
@@ -512,6 +518,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .prescription-button { width: 100%; min-height: 42px; border: 1px solid var(--jade); background: rgba(66, 104, 85, 0.06); color: var(--jade); cursor: pointer; font-size: 11px; }
 .prescription-button:hover { background: var(--jade); color: var(--white-ink); }
 .setting-tip { margin: 9px 0 0; padding: 11px; border-left: 3px solid var(--jade); color: var(--ink-soft); background: rgba(66, 104, 85, 0.055); font-size: 11px; line-height: 1.6; }
+.settings-link { min-height: 38px; margin-top: 10px; padding: 0 10px; border: 1px solid var(--line-dark); display: flex; align-items: center; justify-content: space-between; color: var(--cinnabar); font-size: 11px; }
 .practice-console { min-width: 0; }
 .console-header { min-height: 96px; padding: 17px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
 .console-header p { margin: 0 0 3px; color: var(--cinnabar); font-size: 11px; font-weight: 800; }
@@ -533,9 +540,25 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .beat-dots { display: flex; gap: 8px; position: relative; z-index: 1; }
 .beat-dots span { width: 28px; height: 28px; border: 1px solid var(--line-dark); border-radius: 50%; display: grid; place-items: center; font: 11px Georgia, serif; }
 .beat-dots span.active { background: var(--ink); color: var(--white-ink); box-shadow: 0 0 0 5px rgba(163, 58, 44, 0.12); }
-.chord-switch-display { min-height: 116px; text-align: center; display: flex; flex-direction: column; justify-content: center; position: relative; z-index: 1; }
-.chord-switch-display > span, .chord-switch-display small { color: var(--ink-soft); font-size: 11px; }
-.chord-switch-display strong { font: 800 72px "Songti SC", "STSong", serif; line-height: 1; }
+.chord-switch-display { min-height: 150px; display: flex; align-items: center; justify-content: center; gap: 16px; position: relative; z-index: 1; }
+.chord-switch-display .switch-arrow { color: var(--cinnabar); font: 24px Georgia, serif; }
+.strum-pattern-stage { width: min(680px, calc(100% - 32px)); display: grid; grid-template-columns: repeat(8, minmax(55px, 1fr)); position: relative; z-index: 1; overflow-x: auto; border: 1px solid var(--line-dark); background: var(--paper); }
+.strum-pattern-stage > span { min-width: 55px; min-height: 92px; border-right: 1px solid var(--line); display: grid; grid-template-rows: 18px 1fr 16px; place-items: center; color: var(--ink-soft); transition: background 100ms ease, color 100ms ease; }
+.strum-pattern-stage > span:last-child { border-right: 0; }
+.strum-pattern-stage small { font: 10px Georgia, serif; }
+.strum-pattern-stage svg { width: 27px; height: 27px; }
+.strum-pattern-stage i { width: 32px; height: 32px; border: 1px dashed var(--line-dark); display: grid; place-items: center; font: 10px inherit; }
+.strum-pattern-stage b { color: var(--cinnabar); font-size: 9px; }
+.strum-pattern-stage > span.active { background: var(--ink); color: var(--white-ink); box-shadow: inset 0 -4px 0 var(--cinnabar); }
+.strum-pattern-stage > span.active b { color: #f2c96e; }
+.strum-pattern-stage > span.rest { background-color: rgba(29,33,31,0.035); }
+.strum-judgement { min-width: min(560px, calc(100% - 30px)); padding: 9px 12px; display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 10px; align-items: center; border: 1px solid var(--line-dark); background: rgba(243,240,231,0.88); position: relative; z-index: 2; }
+.strum-judgement > span { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.strum-judgement > span:last-child { border-right: 0; }
+.strum-judgement small { color: var(--ink-soft); font-size: 9px; }
+.strum-judgement strong { font: 16px Georgia, serif; }
+.strum-judgement .mic-state { flex-direction: row; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 10px; }
+.strum-judgement .warn { color: var(--cinnabar); }
 .switch-counter { min-height: 42px; padding: 0 16px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-dark); background: var(--paper); cursor: pointer; position: relative; z-index: 2; }
 .switch-counter:hover:not(:disabled) { background: var(--jade); color: var(--white-ink); }
 .switch-counter strong { min-width: 25px; font-family: Georgia, serif; font-size: 18px; }
@@ -627,6 +650,34 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .level-filter { display: grid; gap: 5px; }
 .level-filter span { color: var(--ink-soft); font-size: 10px; }
 .level-filter select { min-height: 38px; padding: 0 9px; }
+.ai-settings-panel { margin-bottom: 16px; border: 1px solid var(--line-dark); background: rgba(251,250,246,0.58); }
+.ai-settings-panel > header { min-height: 82px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+.ai-settings-panel h2 { margin: 1px 0 3px; font: 800 20px "Songti SC", "STSong", serif; }
+.ai-settings-panel header span { color: var(--ink-soft); font-size: 10px; }
+.setting-toggle { min-height: 36px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.setting-toggle input { width: 17px; height: 17px; accent-color: var(--jade); }
+.setting-toggle > span { color: var(--ink) !important; font-size: 11px !important; }
+.ai-provider-switch { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.ai-provider-switch button { min-height: 54px; border: 0; border-right: 1px solid var(--line); background: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; cursor: pointer; }
+.ai-provider-switch button:last-child { border-right: 0; }
+.ai-provider-switch button.active { background: var(--ink); color: var(--white-ink); }
+.ai-provider-switch small { color: var(--ink-soft); font-size: 9px; }
+.ai-provider-switch button.active small { color: rgba(255,255,255,0.64); }
+.ai-settings-form { padding: 15px 18px; display: grid; grid-template-columns: 1.2fr 0.8fr auto; gap: 14px; align-items: end; }
+.ai-settings-form > label:not(.setting-toggle) { min-width: 0; display: grid; gap: 5px; }
+.ai-settings-form label > span { color: var(--ink-soft); font-size: 10px; display: flex; align-items: center; gap: 5px; }
+.ai-settings-form input[type="text"], .ai-settings-form input[type="password"] { width: 100%; min-width: 0; min-height: 39px; padding: 0 9px; }
+.ai-key-field > div { display: grid; grid-template-columns: minmax(0, 1fr) 39px; }
+.ai-key-field .icon-button { width: 39px; height: 39px; border-left: 0; }
+.setting-toggle.inline { padding-bottom: 2px; white-space: nowrap; }
+.local-key-notice { margin: 0 18px 15px; padding: 11px 13px; display: flex; align-items: start; gap: 9px; background: rgba(66,104,85,0.055); border-left: 3px solid var(--jade); }
+.local-key-notice svg { color: var(--jade); flex: 0 0 auto; }
+.local-key-notice p { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.local-key-notice strong { font-size: 10px; }
+.local-key-notice span { color: var(--ink-soft); font-size: 9px; line-height: 1.55; }
+.ai-settings-panel > footer { min-height: 58px; padding: 9px 18px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 9px; }
+.ai-save-message { display: flex; align-items: center; gap: 4px; color: var(--jade); font-size: 10px; }
+.ai-cost-note { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 9px; }
 .library-layout { display: grid; grid-template-columns: minmax(310px, 0.7fr) minmax(0, 1.3fr); border: 1px solid var(--line-dark); min-height: 620px; background: rgba(251,250,246,0.52); }
 .song-list-panel { border-right: 1px solid var(--line-dark); }
 .song-list-panel > header { min-height: 54px; padding: 0 15px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; }
@@ -654,6 +705,31 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .practice-score { border: 1px solid var(--line-dark); padding: 17px; background: rgba(243,240,231,0.7); }
 .practice-score h3 { font-size: 17px; }
 .practice-score > p { margin: 13px 0 0; color: var(--ink-soft); font-size: 11px; }
+.staff-notation-shell { margin-top: 10px; border: 1px solid var(--line); background: #fffef9; overflow-x: auto; }
+.staff-notation { width: 820px; height: 175px; }
+.trial-staff .staff-notation { width: 680px; height: 150px; }
+.staff-notation svg { display: block; width: 100%; height: 100%; }
+.staff-note-labels { min-width: 820px; margin-top: -31px; padding: 0 22px 9px 92px; display: grid; grid-template-columns: repeat(8, 1fr); position: relative; pointer-events: none; }
+.trial-staff .staff-note-labels { min-width: 680px; padding-left: 78px; }
+.staff-note-labels span { text-align: center; color: var(--ink-soft); font: 10px Georgia, serif; }
+.staff-note-labels span.active { color: var(--cinnabar); font-weight: 800; }
+.score-chord-section { margin-top: 15px; padding: 14px; border: 1px solid var(--line-dark); background: rgba(243,240,231,0.48); }
+.score-chord-section > div:first-child { display: flex; justify-content: space-between; gap: 14px; align-items: baseline; }
+.score-chord-section > div:first-child span { font-weight: 800; font-size: 12px; }
+.score-chord-section > div:first-child small { color: var(--ink-soft); font-size: 9px; }
+.chord-diagram-set { margin-top: 12px; display: flex; align-items: start; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.chord-diagram { width: 132px; min-width: 132px; margin: 0; padding: 9px 13px 12px; border: 1px solid var(--line); background: var(--white-ink); transition: border-color 150ms ease, background 150ms ease; }
+.chord-diagram.compact { width: 104px; min-width: 104px; padding: 7px 10px 9px; }
+.chord-diagram.active { border-color: var(--cinnabar); background: rgba(163,58,44,0.055); box-shadow: inset 0 -3px 0 var(--cinnabar); }
+.chord-diagram figcaption { margin-bottom: 4px; text-align: center; font: 800 18px "Songti SC", "STSong", serif; }
+.chord-diagram.compact figcaption { font-size: 15px; }
+.chord-string-labels { height: 13px; display: grid; grid-template-columns: repeat(6, 1fr); color: var(--ink-soft); font: 10px Arial, sans-serif; text-align: center; }
+.chord-fretboard { height: 104px; margin-inline: 6px; position: relative; background-image: linear-gradient(to right, var(--ink) 1px, transparent 1px), linear-gradient(to bottom, var(--ink) 2px, transparent 2px), repeating-linear-gradient(to bottom, transparent 0, transparent calc(20% - 1px), rgba(29,33,31,0.65) calc(20% - 1px), rgba(29,33,31,0.65) 20%); background-size: 20% 100%, 100% 100%, 100% 100%; background-position: 0 0, 0 0, 0 0; border-right: 1px solid var(--ink); }
+.chord-diagram.compact .chord-fretboard { height: 82px; }
+.chord-fretboard b { width: 18px; height: 18px; border-radius: 50%; position: absolute; z-index: 2; transform: translate(-50%, -50%); display: grid; place-items: center; background: var(--ink); color: var(--white-ink); font: 9px Arial, sans-serif; }
+.chord-diagram.compact .chord-fretboard b { width: 15px; height: 15px; font-size: 8px; }
+.chord-barre { height: 16px; position: absolute; z-index: 1; transform: translateY(-50%); border-radius: 9px; background: var(--ink); }
+.chord-diagram-missing { min-width: 70px; min-height: 70px; display: grid; place-items: center; border: 1px solid var(--line); font: 17px Georgia, serif; }
 .score-skeleton { min-height: 125px; margin-top: 15px; display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; background: repeating-linear-gradient(to bottom, transparent 0, transparent 21px, rgba(29,33,31,0.48) 22px, transparent 23px); border-left: 3px solid var(--ink); }
 .score-time { display: flex; flex-direction: column; align-items: center; font: 22px Georgia, serif; line-height: 0.85; }
 .score-skeleton > span { min-height: 85px; display: grid; place-items: center; border-left: 1px solid rgba(29,33,31,0.16); position: relative; }
@@ -680,6 +756,16 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .trial-player h3 { margin: 2px 0 0; font: 800 17px "Songti SC", "STSong", serif; }
 .trial-mic { min-height: 29px; padding: 0 8px; border: 1px solid var(--line-dark); display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 9px; }
 .trial-mic.live { color: var(--jade); border-color: var(--jade); }
+.trial-staff { border-bottom: 1px solid var(--line); overflow-x: auto; background: #fffef9; }
+.trial-staff .staff-notation-shell { margin: 0; border: 0; }
+.trial-result-row { min-width: 680px; display: grid; grid-template-columns: repeat(8, 1fr); border-top: 1px solid var(--line); }
+.trial-result-row > span { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 4px; border-right: 1px solid var(--line); position: relative; }
+.trial-result-row > span:last-child { border-right: 0; }
+.trial-result-row small { color: var(--ink-soft); font: 8px Georgia, serif; }
+.trial-result-row strong { font: 11px Georgia, serif; }
+.trial-result-row > span.active { background: rgba(163,58,44,0.075); box-shadow: inset 0 -3px 0 var(--cinnabar); }
+.trial-result-row > span.correct { color: var(--jade); }
+.trial-result-row > span.missed { color: var(--cinnabar); opacity: 0.62; }
 .trial-sequence { display: grid; grid-template-columns: repeat(8, 1fr); border-bottom: 1px solid var(--line); overflow-x: auto; }
 .trial-sequence > span { min-width: 55px; min-height: 68px; border-right: 1px solid var(--line); display: grid; place-items: center; align-content: center; gap: 2px; position: relative; }
 .trial-sequence > span:last-child { border-right: 0; }
@@ -689,7 +775,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .trial-sequence > span.active { background: rgba(163,58,44,0.075); box-shadow: inset 0 -3px 0 var(--cinnabar); }
 .trial-sequence > span.correct { color: var(--jade); }
 .trial-sequence > span.missed { color: var(--cinnabar); opacity: 0.62; }
-.trial-readout { display: grid; grid-template-columns: repeat(5, 1fr); }
+.trial-readout { display: grid; grid-template-columns: repeat(6, 1fr); }
 .trial-readout > div { min-height: 56px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--line); }
 .trial-readout > div:last-child { border-right: 0; }
 .trial-readout span { color: var(--ink-soft); font-size: 9px; display: flex; align-items: center; gap: 4px; }
@@ -805,9 +891,8 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .topbar { grid-template-columns: 210px minmax(0, 1fr) 190px; padding-inline: 2vw; }
   .nav-link { padding-inline: 9px; }
   .player-status > span { display: none; }
-  .today-tasks { grid-template-columns: repeat(3, 1fr); }
-  .today-tasks > button:nth-child(3) { border-right: 0; }
-  .today-tasks > button:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .today-tasks { grid-template-columns: repeat(4, 1fr); }
+  .today-tasks > button:nth-child(4) { border-right: 0; }
   .saved-score-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -815,6 +900,8 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .training-workbench { grid-template-columns: 270px minmax(0, 1fr); }
   .library-toolbar { grid-template-columns: 1fr 160px; }
   .library-toolbar .primary-action { grid-column: 1 / 3; width: 100%; }
+  .ai-settings-form { grid-template-columns: 1fr 1fr; }
+  .setting-toggle.inline { grid-column: 1 / 3; }
   .library-layout { grid-template-columns: 280px minmax(0, 1fr); }
   .import-layout { grid-template-columns: 1fr; }
   .score-upload-panel { border-right: 0; border-bottom: 1px solid var(--line-dark); }
@@ -839,6 +926,9 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .pain-check.compact { grid-template-columns: 1fr; }
   .mic-judgement { grid-template-columns: repeat(3, 1fr); }
   .mic-judgement .mic-state, .mic-judgement .auto-score { grid-column: span 3; border-right: 0; justify-content: center; }
+  .strum-pattern-stage { grid-template-columns: repeat(8, 58px); }
+  .strum-judgement { min-width: calc(100% - 24px); grid-template-columns: repeat(2, 1fr); }
+  .strum-judgement > span:nth-child(2) { border-right: 0; }
   .simple-task-panel { grid-template-columns: 58px 1fr; padding: 23px 18px; }
   .simple-task-icon { width: 54px; height: 54px; }
   .simple-task-panel > .complete-task { grid-column: 1 / 3; width: 100%; justify-content: center; }
@@ -858,6 +948,13 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .weekly-rhythm ol { grid-template-columns: repeat(2, 1fr); }
   .library-toolbar { grid-template-columns: 1fr; }
   .library-toolbar .primary-action { grid-column: 1; }
+  .ai-settings-panel > header { align-items: stretch; flex-direction: column; }
+  .ai-settings-form { grid-template-columns: 1fr; }
+  .setting-toggle.inline { grid-column: 1; white-space: normal; }
+  .ai-settings-panel > footer { align-items: stretch; flex-wrap: wrap; }
+  .ai-settings-panel > footer .primary-action, .ai-settings-panel > footer .icon-text-button { flex: 1; justify-content: center; }
+  .ai-save-message { width: 100%; }
+  .ai-cost-note { width: 100%; margin-left: 0; }
   .library-layout { grid-template-columns: 1fr; }
   .song-list-panel { border-right: 0; border-bottom: 1px solid var(--line-dark); }
   .graded-song-list { display: flex; overflow-x: auto; max-height: none; }
