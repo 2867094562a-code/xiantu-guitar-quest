@@ -2,10 +2,10 @@
 
 import { Pause, Play, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Annotation, Formatter, Renderer, TabNote, TabStave, Voice } from "vexflow";
 import type { SongQuest } from "../data/curriculum";
 
 type TabPosition = { str: number; fret: string };
+type TabEntry = { positions: TabPosition[]; label: string };
 
 const CHORD_TABS: Record<string, TabPosition[]> = {
   C: [{ str: 5, fret: "3" }, { str: 4, fret: "2" }, { str: 3, fret: "0" }, { str: 2, fret: "1" }, { str: 1, fret: "0" }],
@@ -38,32 +38,19 @@ function trainingTempo(value: string) {
   return Math.max(40, Math.min(100, tempo));
 }
 
-function makeMeasure(
-  context: ReturnType<Renderer["getContext"]>,
-  x: number,
-  y: number,
-  width: number,
-  entries: Array<{ positions: TabPosition[]; label: string }>,
-  first: boolean,
-  activeIndex: number,
-  offset: number,
-) {
-  const stave = new TabStave(x, y, width);
-  if (first) stave.addClef("tab").addTimeSignature("4/4");
-  stave.setContext(context).draw();
-  const notes = entries.map((entry, index) => {
-    const note = new TabNote({ positions: entry.positions, duration: "q" });
-    note.addModifier(new Annotation(entry.label).setVerticalJustification(Annotation.VerticalJustify.TOP));
-    if (offset + index === activeIndex) note.setStyle({ fillStyle: "#a33a2c", strokeStyle: "#a33a2c" });
-    return note;
-  });
-  const voice = new Voice({ numBeats: 4, beatValue: 4 }).addTickables(notes);
-  new Formatter().joinVoices([voice]).format([voice], width - (first ? 88 : 30));
-  voice.draw(context, stave);
+function TabMeasure({ entries, section, activeIndex, offset }: { entries: TabEntry[]; section: string; activeIndex: number; offset: number }) {
+  return <div className="tab-measure">
+    <header><strong>{section}</strong><small>4 / 4</small></header>
+    <div className="tab-grid" aria-label={`${section} 六线谱`}>
+      {[1, 2, 3, 4, 5, 6].map((string) => <i key={string} className="tab-string" style={{ gridRow: string + 1 }} />)}
+      {entries.map((entry, index) => <span key={`highlight-${index}`} className={offset + index === activeIndex ? "tab-active-column" : ""} style={{ gridColumn: index + 1, gridRow: "2 / 8" }} />)}
+      {entries.map((entry, index) => <b key={`label-${index}`} className={offset + index === activeIndex ? "active" : ""} style={{ gridColumn: index + 1, gridRow: 1 }}>{entry.label}</b>)}
+      {entries.flatMap((entry, entryIndex) => entry.positions.map((position, positionIndex) => <em key={`${entryIndex}-${position.str}-${positionIndex}`} className={offset + entryIndex === activeIndex ? "active" : ""} style={{ gridColumn: entryIndex + 1, gridRow: position.str + 1 }}>{position.fret}</em>))}
+    </div>
+  </div>;
 }
 
 export function StaffNotation({ song, activeIndex = -1, compact = false }: { song: SongQuest; activeIndex?: number; compact?: boolean }) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const playbackTimerRef = useRef<number | null>(null);
   const pluckTimersRef = useRef<number[]>([]);
@@ -71,7 +58,7 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
   const [playbackIndex, setPlaybackIndex] = useState(-1);
   const sections = song.track === "singing" ? ["前奏", "主歌", "副歌", "尾奏"] : ["前奏", "主题 A", "主题 B", "尾奏"];
   const entryCount = compact ? 8 : 16;
-  const entries = useMemo(() => {
+  const entries = useMemo<TabEntry[]>(() => {
     if (song.track === "singing") {
       const chords = song.chords?.length ? song.chords : ["C", "G", "Am", "Fmaj7"];
       return Array.from({ length: entryCount }, (_, index) => {
@@ -95,7 +82,7 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
     setPlaybackIndex(-1);
   }, []);
 
-  const playEntry = useCallback((entry: { positions: TabPosition[] }) => {
+  const playEntry = useCallback((entry: TabEntry) => {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     const context = audioRef.current ?? new AudioContextClass();
     audioRef.current = context;
@@ -104,9 +91,8 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
       const timer = window.setTimeout(() => {
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        const frequency = STRING_FREQUENCIES[position.str] * 2 ** (Number(position.fret) / 12);
         oscillator.type = "triangle";
-        oscillator.frequency.value = frequency;
+        oscillator.frequency.value = STRING_FREQUENCIES[position.str] * 2 ** (Number(position.fret) / 12);
         gain.gain.setValueAtTime(0.0001, context.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.085, context.currentTime + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.62);
@@ -124,45 +110,24 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
     setPlaying(true);
     setPlaybackIndex(index);
     playEntry(entries[index]);
-    const beatLength = 60_000 / trainingTempo(song.trainingBpm);
     playbackTimerRef.current = window.setInterval(() => {
       index = (index + 1) % entries.length;
       setPlaybackIndex(index);
       playEntry(entries[index]);
-    }, beatLength * (song.track === "singing" ? 4 : 2));
+    }, 60_000 / trainingTempo(song.trainingBpm) * (song.track === "singing" ? 4 : 2));
   }, [entries, playEntry, playing, song.track, song.trainingBpm, stopPlayback]);
-
-  const highlightedIndex = activeIndex >= 0 ? activeIndex : playbackIndex;
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    host.replaceChildren();
-    const width = compact ? 680 : 820;
-    const height = compact ? 150 : 300;
-    const renderer = new Renderer(host, Renderer.Backends.SVG);
-    renderer.resize(width, height);
-    const context = renderer.getContext();
-    context.setFont("Arial", 10);
-    const measureWidth = width / 2 - 18;
-    makeMeasure(context, 10, 42, measureWidth, entries.slice(0, 4), true, highlightedIndex, 0);
-    makeMeasure(context, width / 2, 42, width / 2 - 10, entries.slice(4, 8), false, highlightedIndex, 4);
-    if (!compact) {
-      makeMeasure(context, 10, 164, measureWidth, entries.slice(8, 12), false, highlightedIndex, 8);
-      makeMeasure(context, width / 2, 164, width / 2 - 10, entries.slice(12, 16), false, highlightedIndex, 12);
-    }
-  }, [compact, entries, highlightedIndex]);
 
   useEffect(() => () => { stopPlayback(); void audioRef.current?.close(); }, [stopPlayback]);
 
-  return (
-    <div className="staff-notation-shell guitar-tab-shell">
-      <div ref={hostRef} className="staff-notation guitar-tablature" aria-label={`${song.title} 吉他六线谱练习片段`} />
-      {!compact && <div className="tab-playback-bar"><button className={`secondary-action${playing ? " playing" : ""}`} onClick={togglePlayback}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "暂停试听" : "试听六线谱"}</button><span><Volume2 size={14} />{trainingTempo(song.trainingBpm)} BPM · {song.track === "singing" ? "每个和弦 4 拍" : "每个音 2 拍"}</span></div>}
-      {!compact && <div className="tab-section-strip" aria-label="练习编配段落"><strong>练习编配 72%</strong>{sections.map((section) => <span key={section}>{section} · 4 小节</span>)}</div>}
-      {compact && <div className="staff-note-labels" aria-hidden="true">
-        {entries.slice(0, 8).map((entry, index) => <span key={index} className={index === highlightedIndex ? "active" : ""}>{entry.label}</span>)}
-      </div>}
+  const highlightedIndex = activeIndex >= 0 ? activeIndex : playbackIndex;
+  const visibleSections = compact ? ["短句 1", "短句 2"] : sections;
+  const measures = Array.from({ length: compact ? 2 : 4 }, (_, index) => entries.slice(index * 4, index * 4 + 4));
+
+  return <div className={`staff-notation-shell guitar-tab-shell${compact ? " compact" : ""}`}>
+    <div className="guitar-tablature" aria-label={`${song.title} 吉他六线谱练习片段`}>
+      {measures.map((measure, index) => <TabMeasure key={index} entries={measure} section={visibleSections[index]} activeIndex={highlightedIndex} offset={index * 4} />)}
     </div>
-  );
+    {!compact && <div className="tab-playback-bar"><button className={`secondary-action${playing ? " playing" : ""}`} onClick={togglePlayback}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "暂停试听" : "试听六线谱"}</button><span><Volume2 size={14} />{trainingTempo(song.trainingBpm)} BPM · {song.track === "singing" ? "每个和弦 4 拍" : "每个音 2 拍"}</span></div>}
+    {!compact && <div className="tab-section-strip" aria-label="练习编配段落"><strong>练习编配 72%</strong>{sections.map((section) => <span key={section}>{section} · 4 小节</span>)}</div>}
+  </div>;
 }
