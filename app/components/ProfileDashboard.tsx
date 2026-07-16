@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenCheck, CalendarDays, Check, Clock3, Copy, KeyRound, LogIn, LogOut, Music, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { BookOpenCheck, CalendarDays, Check, Clock3, Copy, KeyRound, LogIn, LogOut, Music, ShieldCheck, Sparkles, Target, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { songQuests } from "../data/curriculum";
 import { AppShell } from "./AppShell";
 
 type Profile = {
@@ -23,6 +24,7 @@ type Profile = {
 type ProgressData = {
   sessions: Array<{ id: string; exerciseType: string; durationSeconds: number; bpm?: number; completedAt: string }>;
   progress: Array<{ id: string; track: string; stageId: string; stars: number; status: string }>;
+  weekly?: { sessionCount: number; minutes: number; highestStableBpm: number; averagePain: number; weakestChord: string; nextAction: string };
 };
 
 const exerciseLabels: Record<string, string> = {
@@ -36,6 +38,10 @@ export function ProfileDashboard() {
   const [syncCode, setSyncCode] = useState("");
   const [restoreCode, setRestoreCode] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
+  const completedWorks = history.progress
+    .filter((item) => item.status === "completed")
+    .map((item) => ({ progress: item, song: songQuests.find((song) => song.id === item.stageId) }))
+    .filter((item): item is { progress: ProgressData["progress"][number]; song: NonNullable<typeof item.song> } => Boolean(item.song));
 
   useEffect(() => {
     Promise.all([
@@ -152,6 +158,17 @@ export function ProfileDashboard() {
                 ))}
               </div>
             ) : <p className="empty-state">完成今日第一项训练后，记录会出现在这里。</p>}
+          </section>
+
+          <section className="profile-panel weekly-report">
+            <div className="panel-title"><div><p className="eyebrow">练习诊疗</p><h2>本周报告</h2></div><Target size={22} /></div>
+            <div className="weekly-metrics"><span><small>练习</small><strong>{history.weekly?.minutes ?? 0} 分钟</strong></span><span><small>最高稳定</small><strong>{history.weekly?.highestStableBpm ?? 0} BPM</strong></span><span><small>平均疲劳</small><strong>{history.weekly?.averagePain ?? 0} / 10</strong></span></div>
+            <p className="weekly-next"><strong>下一步：</strong>{history.weekly?.nextAction ?? "完成今天的第一项练习后，系统会给出针对性建议。"}</p>
+          </section>
+
+          <section className="profile-panel portfolio-panel">
+            <div className="panel-title"><div><p className="eyebrow">已练成的曲目</p><h2>我的作品集</h2></div><Music size={22} /></div>
+            {completedWorks.length ? <div className="portfolio-list">{completedWorks.slice(0, 8).map(({ progress, song }) => <div key={progress.id}><span>{song.track === "singing" ? "弹唱" : "指弹"}</span><strong>{song.title}</strong><small>{song.artist} · {"★".repeat(progress.stars)}{"☆".repeat(Math.max(0, 3 - progress.stars))}</small></div>)}</div> : <p className="empty-state">完成一轮曲目试弹后，它会留在这里，慢慢长成你的演奏曲库。</p>}
           </section>
         </div>
       )}

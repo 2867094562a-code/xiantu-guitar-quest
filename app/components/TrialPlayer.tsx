@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Mic, MicOff, Pause, RotateCcw, Signal, Sparkles, X } from "lucide-react";
+import { Check, Mic, MicOff, Pause, RotateCcw, Signal, Sparkles, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SongQuest } from "../data/curriculum";
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
@@ -15,6 +15,26 @@ function normalizeTarget(value: string) {
 function trainingTempo(value: string) {
   const first = Number(value.match(/\d+/)?.[0] ?? 60);
   return Math.max(40, Math.min(100, first));
+}
+
+async function waveformFromRecording(blob: Blob) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const context = new AudioContextClass();
+  try {
+    const audio = await context.decodeAudioData(await blob.arrayBuffer());
+    const samples = audio.getChannelData(0);
+    const bars = 24;
+    return Array.from({ length: bars }, (_, index) => {
+      const start = Math.floor(index * samples.length / bars);
+      const end = Math.floor((index + 1) * samples.length / bars);
+      let energy = 0;
+      for (let offset = start; offset < end; offset += 1) energy += samples[offset] * samples[offset];
+      const rms = Math.sqrt(energy / Math.max(1, end - start));
+      return Math.max(7, Math.min(66, Math.round(7 + rms * 210)));
+    });
+  } finally {
+    void context.close();
+  }
 }
 
 export function TrialPlayer({ song }: { song: SongQuest }) {
@@ -35,6 +55,7 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     aiChecking,
     aiProvider,
     aiError,
+    requestAiReview,
     start: startRecognition,
     stop: stopRecognition,
     clear: clearRecognition,
@@ -43,6 +64,8 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [marks, setMarks] = useState<TrialMark[]>(() => targets.map(() => "idle"));
   const [score, setScore] = useState(0);
+  const [recordingUrl, setRecordingUrl] = useState("");
+  const [recordingBars, setRecordingBars] = useState<number[]>([]);
   const intervalRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
   const hitRef = useRef(false);
@@ -50,6 +73,9 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
   const aiTargetIndexRef = useRef(-1);
   const aiCorrectedRef = useRef(new Set<number>());
   const audioRef = useRef<AudioContext | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingUrlRef = useRef("");
   const bpm = trainingTempo(song.trainingBpm);
   const beatsPerTarget = isChordTrial ? 4 : 2;
 
@@ -78,11 +104,15 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     intervalRef.current = null;
     setRunning(false);
     stopRecognition();
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, [stopRecognition]);
 
   useEffect(() => () => {
     if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
     stopRecognition();
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
     void audioRef.current?.close();
   }, [stopRecognition]);
 
@@ -119,6 +149,25 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
     clearRecognition();
     const ready = await startRecognition();
     if (!ready) return;
+    try {
+      const recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks: BlobPart[] = [];
+      const recorder = new MediaRecorder(recordingStream);
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        if (chunks.length) {
+          const clip = new Blob(chunks, { type: recorder.mimeType });
+          if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+          const url = URL.createObjectURL(clip);
+          recordingUrlRef.current = url;
+          setRecordingUrl(url);
+          void waveformFromRecording(clip).then(setRecordingBars).catch(() => setRecordingBars([]));
+        }
+        recordingStream.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+      };
+      recorder.start(); recorderRef.current = recorder; recordingStreamRef.current = recordingStream;
+    } catch { /* Recognition can continue even when a browser blocks a second recording stream. */ }
     const initialMarks = targets.map(() => "idle" as TrialMark);
     setMarks(initialMarks);
     setScore(0);
@@ -146,6 +195,22 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
         intervalRef.current = null;
         setRunning(false);
         stopRecognition();
+        if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+        const finalScore = marksRef.current.filter((mark) => mark === "correct").length + (wasCorrect ? 1 : 0);
+        void fetch("/api/progress", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            exerciseType: isChordTrial ? "song" : "fingerstyle",
+            exerciseId: song.id,
+            durationSeconds: Math.round(targets.length * beatsPerTarget * 60 / bpm),
+            bpm,
+            score: finalScore,
+            track: song.track,
+            stageId: song.id,
+            stars: finalScore >= 7 ? 3 : finalScore >= 5 ? 2 : 1,
+          }),
+        });
         return;
       }
 
@@ -197,9 +262,11 @@ export function TrialPlayer({ song }: { song: SongQuest }) {
 
       <div className="trial-actions">
         <button className="primary-action" onClick={startTrial}>{running ? <Pause size={17} /> : <Mic size={17} />}{running ? "暂停试弹" : "开启麦克风并试弹"}</button>
+        {listening && <button className="secondary-action" onClick={requestAiReview} disabled={aiChecking || calibration !== "ready"}>{aiChecking ? <Signal size={16} /> : <Sparkles size={16} />}{aiChecking ? "AI 复核中" : "AI 复核刚才一段"}</button>}
         <button className="icon-button" onClick={reset} aria-label="重置试弹" title="重置试弹"><RotateCcw size={17} /></button>
         <p><Sparkles size={14} />{bpm} BPM · {isChordTrial ? "每 4 拍扫一次目标和弦" : "每 2 拍弹一个目标音"}</p>
       </div>
+      {recordingUrl && <div className="recording-review"><div><span><Volume2 size={15} />本地录音复盘</span><div className="recording-wave">{recordingBars.map((height, index) => <i key={index} style={{ height }} />)}</div></div><audio controls src={recordingUrl} /><small>本段只保存在当前浏览器；下次试弹会替换。</small></div>}
       {error && <p className="recognition-error">{error}</p>}
       {aiError && <p className="recognition-error">AI 复核未完成：{aiError}</p>}
       <small className="trial-disclaimer">{isChordTrial ? "识别器评估吉他和弦，不评估歌声。" : `${song.trialSource ?? "原创技术片段"}，用于音准和节拍检测。`}</small>

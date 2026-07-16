@@ -114,6 +114,14 @@ textarea:focus-visible {
 .player-status { justify-self: end; display: flex; align-items: center; gap: 18px; font-size: 13px; }
 .player-status span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .player-status .safe { color: var(--jade); }
+.header-ai-button { min-height: 34px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-dark); background: rgba(251,250,246,0.58); color: var(--ink); cursor: pointer; transition: transform 160ms ease, color 160ms ease, border-color 160ms ease, background 160ms ease; }
+.header-ai-button:hover { color: var(--cinnabar); border-color: var(--cinnabar); background: var(--white-ink); transform: translateY(-1px); }
+.header-ai-button:active { transform: translateY(0) scale(0.98); }
+.ai-settings-dialog { width: min(760px, calc(100vw - 28px)); max-height: min(820px, calc(100vh - 28px)); padding: 0; border: 1px solid var(--line-dark); background: var(--paper); color: var(--ink); box-shadow: 8px 10px 0 rgba(29,33,31,0.14); animation: dialogEnter 180ms ease-out; }
+.ai-settings-dialog::backdrop { background: rgba(29,33,31,0.42); backdrop-filter: blur(2px); animation: fadeIn 160ms ease-out; }
+.ai-settings-dialog .ai-settings-panel { margin: 0; border: 0; }
+.dialog-close { width: 36px; height: 36px; position: absolute; right: 9px; top: 9px; z-index: 2; display: grid; place-items: center; border: 1px solid var(--line-dark); background: var(--paper); cursor: pointer; transition: transform 150ms ease, color 150ms ease; }
+.dialog-close:hover { color: var(--cinnabar); transform: rotate(90deg); }
 
 main { width: min(1480px, calc(100% - 7vw)); margin: 0 auto; padding: 28px 0 46px; }
 
@@ -676,6 +684,10 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .local-key-notice strong { font-size: 10px; }
 .local-key-notice span { color: var(--ink-soft); font-size: 9px; line-height: 1.55; }
 .ai-settings-panel > footer { min-height: 58px; padding: 9px 18px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 9px; }
+.ai-connection-message { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 10px; animation: statusSlide 180ms ease-out; }
+.ai-connection-message.success { color: var(--jade); }
+.ai-connection-message.error { color: var(--cinnabar); }
+.ai-close-button { margin-left: auto; }
 .ai-save-message { display: flex; align-items: center; gap: 4px; color: var(--jade); font-size: 10px; }
 .ai-cost-note { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 9px; }
 .library-layout { display: grid; grid-template-columns: minmax(310px, 0.7fr) minmax(0, 1.3fr); border: 1px solid var(--line-dark); min-height: 620px; background: rgba(251,250,246,0.52); }
@@ -824,6 +836,10 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .save-score { width: 100%; }
 .save-message { margin: 0; color: var(--cinnabar); font-size: 11px; text-align: center; }
 .save-message.good { color: var(--jade); }
+.ai-score-button { grid-column: 1 / 3; width: 100%; justify-content: center; }
+.ai-review-button { margin: 12px 14px 0; min-height: 36px; padding: 0 11px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--jade); background: rgba(66,104,85,0.06); color: var(--jade); cursor: pointer; transition: transform 150ms ease, background 150ms ease; }
+.ai-review-button:hover:not(:disabled) { background: rgba(66,104,85,0.13); transform: translateY(-1px); }
+.ai-review-button:disabled { opacity: 0.5; cursor: wait; }
 .personal-scores { margin-top: 16px; padding: 20px; border: 1px solid var(--line-dark); }
 .personal-scores .section-heading h2 { margin: 2px 0 0; font: 800 21px "Songti SC", "STSong", serif; }
 .personal-scores .section-heading > span { display: flex; align-items: center; gap: 5px; color: var(--ink-soft); font-size: 11px; }
@@ -854,6 +870,15 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .profile-stats span { color: var(--ink-soft); font-size: 10px; }
 .profile-stats strong { font: 17px Georgia, serif; }
 .profile-panel { padding: 20px; }
+.weekly-report { display: grid; align-content: start; }
+.weekly-metrics { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); }
+.weekly-metrics span { min-height: 68px; padding: 10px; display: grid; gap: 4px; border-right: 1px solid var(--line); }
+.weekly-metrics span:last-child { border-right: 0; }.weekly-metrics small { color: var(--ink-soft); font-size: 9px; }.weekly-metrics strong { font: 16px Georgia, serif; }.weekly-next { margin: 14px 0 0; line-height: 1.6; font-size: 12px; }
+.score-workbench { margin-top: 16px; border: 1px solid var(--line-dark); background: rgba(251,250,246,.56); }.score-workbench > header { min-height: 62px; padding: 12px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }.score-workbench h3 { margin:2px 0 0; font:800 17px "Songti SC",serif; }.workbench-actions { display:flex; gap:7px; }.workbench-controls { padding:11px 15px; display:flex; gap:16px; align-items:center; border-bottom:1px solid var(--line); flex-wrap:wrap; }.workbench-controls label { display:flex; align-items:center; gap:8px; color:var(--ink-soft); font-size:10px; }.workbench-controls label div { display:flex; border:1px solid var(--line-dark); }.workbench-controls button { min-width:29px; min-height:28px; border:0; border-right:1px solid var(--line); background:transparent; cursor:pointer; }.workbench-controls button:last-child { border-right:0; }.workbench-controls button.active { background:var(--cinnabar); color:var(--white-ink); }.workbench-controls strong { min-width:70px; display:grid; place-items:center; font:12px Georgia,serif; }.workbench-controls > span { margin-left:auto; display:flex; align-items:center; gap:5px; color:var(--jade); font-size:10px; }.workbench-hints { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); }.workbench-hints div { min-height:58px; padding:10px; display:flex; flex-direction:column; gap:4px; border-right:1px solid var(--line); }.workbench-hints div:last-child{border-right:0}.workbench-hints strong{font-size:10px}.workbench-hints span{color:var(--ink-soft);font-size:10px}.score-workbench footer{padding:12px 15px;display:flex;gap:9px;border-top:1px solid var(--line);}
+.audio-calibration { margin:16px 0; padding:16px; display:grid; grid-template-columns:1fr auto; gap:14px; border:1px solid var(--line-dark); background:rgba(66,104,85,.045); }.audio-calibration h2{margin:2px 0 5px;font:800 19px "Songti SC",serif}.audio-calibration > div > span{color:var(--ink-soft);font-size:11px}.calibration-controls{display:flex;align-items:center;gap:8px}.calibration-controls select{max-width:210px;min-height:38px}.calibration-result{grid-column:1/3;display:flex;gap:16px;padding-top:11px;border-top:1px solid var(--line);color:var(--jade);font-size:10px}.calibration-result span{display:flex;align-items:center;gap:5px}
+.band-controls{padding:11px 15px;display:flex;gap:14px;align-items:center;border-top:1px solid var(--line)}.band-controls label{display:flex;gap:5px;align-items:center;font-size:11px}.band-controls input{accent-color:var(--cinnabar)}.band-controls button{margin-left:auto}
+.recording-review{padding:12px 14px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.recording-review>div>span{display:flex;align-items:center;gap:5px;font-size:10px}.recording-review audio{max-width:250px;height:32px}.recording-review small{grid-column:1/3;color:var(--ink-soft);font-size:9px}.recording-wave{height:58px;display:flex;align-items:center;gap:2px;margin-top:5px}.recording-wave i{width:4px;background:var(--jade);opacity:.75;transition:height 180ms ease}
+.memory-status.sync-failed{color:var(--cinnabar)}.portfolio-list{display:grid;gap:1px;border-top:1px solid var(--line)}.portfolio-list>div{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.portfolio-list span{color:var(--jade);font-size:10px}.portfolio-list strong{font:700 14px "Songti SC",serif}.portfolio-list small{color:var(--ochre);font-size:10px;white-space:nowrap}
 .profile-panel > .panel-title { margin-bottom: 18px; }
 .sync-panel { display: grid; align-content: start; }
 .sync-code-row, .sync-restore-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 10px; }
@@ -886,6 +911,9 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .sensitivity-control small { color: var(--ink-soft); font-size: 10px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes dialogEnter { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes statusSlide { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 1260px) {
   .topbar { grid-template-columns: 210px minmax(0, 1fr) 190px; padding-inline: 2vw; }
@@ -911,6 +939,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .weekly-rhythm > a { justify-self: end; }
   .profile-layout { grid-template-columns: 1fr; }
   .profile-summary { grid-column: 1; }
+  .workbench-hints { grid-template-columns:1fr; }.workbench-hints div { border-right:0;border-bottom:1px solid var(--line); }.workbench-controls > span { width:100%;margin-left:0; }.score-workbench footer { flex-wrap:wrap; }.score-workbench footer button { flex:1; justify-content:center; }
 }
 
 @media (max-width: 760px) {
@@ -955,6 +984,8 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
   .ai-settings-panel > footer .primary-action, .ai-settings-panel > footer .icon-text-button { flex: 1; justify-content: center; }
   .ai-save-message { width: 100%; }
   .ai-cost-note { width: 100%; margin-left: 0; }
+  .ai-score-button { grid-column: 1; }
+  .header-ai-button span { display: none; }
   .library-layout { grid-template-columns: 1fr; }
   .song-list-panel { border-right: 0; border-bottom: 1px solid var(--line-dark); }
   .graded-song-list { display: flex; overflow-x: auto; max-height: none; }

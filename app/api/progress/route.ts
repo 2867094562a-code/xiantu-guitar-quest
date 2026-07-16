@@ -5,6 +5,10 @@ import { ensureUser } from "../../server/current-user";
 import { getDb } from "../../../db";
 import { courseProgress, practiceSessions, users } from "../../../db/schema";
 
+function chinaDate(value: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+}
+
 export async function GET() {
   const identity = await getChatGPTUser();
   if (!identity) return NextResponse.json({ signedIn: false, progress: [], sessions: [] });
@@ -14,7 +18,19 @@ export async function GET() {
     db.select().from(courseProgress).where(eq(courseProgress.userId, user.id)),
     db.select().from(practiceSessions).where(eq(practiceSessions.userId, user.id)).orderBy(desc(practiceSessions.completedAt)).limit(20),
   ]);
-  return NextResponse.json({ signedIn: true, progress, sessions });
+  const recent = sessions.filter((session) => session.completedAt.getTime() >= Date.now() - 7 * 86_400_000);
+  const chordSessions = recent.filter((session) => session.exerciseType === "chord");
+  const weakestChord = chordSessions.sort((a, b) => (a.score ?? 0) - (b.score ?? 0))[0];
+  const highestStableBpm = recent.reduce((highest, session) => Math.max(highest, session.bpm ?? 0), 0);
+  const averagePain = recent.length ? Math.round(recent.reduce((sum, session) => sum + (session.painScore ?? 0), 0) / recent.length * 10) / 10 : 0;
+  return NextResponse.json({ signedIn: true, progress, sessions, weekly: {
+    sessionCount: recent.length,
+    minutes: Math.round(recent.reduce((sum, session) => sum + session.durationSeconds, 0) / 60),
+    highestStableBpm,
+    averagePain,
+    weakestChord: weakestChord?.exerciseId ?? "",
+    nextAction: averagePain >= 3 ? "减少高负荷横按，先用 45 秒短组练右手节奏。" : weakestChord ? `优先做 ${weakestChord.exerciseId} 的 5 分钟慢速转换。` : "完成一次和弦转换挑战，建立你的第一条薄弱项记录。",
+  } });
 }
 
 export async function POST(request: Request) {
@@ -57,9 +73,9 @@ export async function POST(request: Request) {
     completedAt,
   });
 
-  const today = completedAt.toISOString().slice(0, 10);
-  const yesterday = new Date(completedAt.getTime() - 86_400_000).toISOString().slice(0, 10);
-  const previousDay = previousSession[0]?.completedAt.toISOString().slice(0, 10);
+  const today = chinaDate(completedAt);
+  const yesterday = chinaDate(new Date(completedAt.getTime() - 86_400_000));
+  const previousDay = previousSession[0] ? chinaDate(previousSession[0].completedAt) : undefined;
   const streakDays = previousDay === today
     ? Math.max(1, user.streakDays)
     : previousDay === yesterday ? user.streakDays + 1 : 1;

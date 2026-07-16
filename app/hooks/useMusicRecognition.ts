@@ -12,6 +12,7 @@ const CHORD_TEMPLATES: Record<string, number[]> = {
   E: [4, 8, 11], Em: [4, 7, 11], F: [5, 9, 0], Fmaj7: [5, 9, 0, 4],
   G: [7, 11, 2], A: [9, 1, 4], Am: [9, 0, 4], Bm: [11, 2, 6],
 };
+const calibrationStorageKey = "xiantu-mic-calibration-v1";
 
 function canonicalChord(value: string) {
   if (value === "小 F") return "F";
@@ -197,10 +198,10 @@ export function useMusicRecognition(kind: RecognitionKind, candidates: string[] 
 
   useEffect(() => () => stop(), [stop]);
 
-  const runAiReview = useCallback(async () => {
+  const runAiReview = useCallback(async (force = false) => {
     const settings = loadLocalAiSettings();
     const current = latestConfigRef.current;
-    if (!settings.enabled || !settings.autoReview || !settings.apiKey || !current.candidates.length || aiInFlightRef.current) return;
+    if (!settings.enabled || (!force && !settings.autoReview) || !settings.apiKey || !current.candidates.length || aiInFlightRef.current) return;
     const context = contextRef.current;
     if (!context) return;
     const audioBase64 = encodeRecentWav(recentPcmRef.current, context.sampleRate);
@@ -250,6 +251,16 @@ export function useMusicRecognition(kind: RecognitionKind, candidates: string[] 
         audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false, channelCount: 1 },
       });
       requestedStream = stream;
+      const actualDeviceId = stream.getAudioTracks()[0]?.getSettings().deviceId ?? "default";
+      let sensitivityMultiplier = 1;
+      try {
+        const raw = localStorage.getItem(`${calibrationStorageKey}:${actualDeviceId}`);
+        const saved = raw ? JSON.parse(raw) as { sensitivity?: number } : null;
+        if (saved?.sensitivity) {
+          // A higher calibration sensitivity lowers the trigger threshold, without bypassing the measured noise floor.
+          sensitivityMultiplier = Math.max(0.72, Math.min(1.28, 1.42 - saved.sensitivity / 20));
+        }
+      } catch { /* A malformed local preference should never stop a practice session. */ }
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const context = new AudioContextClass();
       requestedContext = context;
@@ -317,7 +328,7 @@ export function useMusicRecognition(kind: RecognitionKind, candidates: string[] 
             setCalibration("ready");
           }
 
-          const threshold = Math.max(0.0018, Math.min(0.018, noiseFloorRef.current * 2.8 + 0.0007));
+          const threshold = Math.max(0.0015, Math.min(0.018, (noiseFloorRef.current * 2.8 + 0.0007) * sensitivityMultiplier));
           const signalPercent = Math.min(100, Math.round((Math.max(0, rms - noiseFloorRef.current) / Math.max(0.012, threshold * 4)) * 100));
           setSignal(signalPercent);
           let result = { label: "", confidence: 0 };
@@ -388,6 +399,6 @@ export function useMusicRecognition(kind: RecognitionKind, candidates: string[] 
 
   return {
     listening, detected, confidence, signal, error, source, calibration,
-    aiChecking, aiProvider, aiError, onsetCount, start, stop, clear, requestAiReview: runAiReview,
+    aiChecking, aiProvider, aiError, onsetCount, start, stop, clear, requestAiReview: () => runAiReview(true),
   };
 }

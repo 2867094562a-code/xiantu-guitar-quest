@@ -32,6 +32,7 @@ import { chordPairs, songQuests, spiderPatterns, strumPatterns } from "../data/c
 import { useMusicRecognition } from "../hooks/useMusicRecognition";
 import { AppShell } from "./AppShell";
 import { ChordDiagram } from "./ChordDiagram";
+import { AudioCalibrationWizard } from "./AudioCalibrationWizard";
 
 type ExerciseId = "tune" | "spider" | "chord" | "strum" | "rhythm" | "song" | "review";
 type SessionMode = "练习" | "休息";
@@ -167,6 +168,7 @@ export function PracticeGame() {
   const [strumExtras, setStrumExtras] = useState(0);
   const [reviewNote, setReviewNote] = useState("");
   const [memoryReady, setMemoryReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"loading" | "synced" | "local" | "failed">("loading");
   const cleanSwitchesRef = useRef(0);
   const lastCloudSyncRef = useRef(0);
   const practiceDateRef = useRef(localDateKey());
@@ -192,6 +194,7 @@ export function PracticeGame() {
     aiChecking: chordAiChecking,
     aiProvider: chordAiProvider,
     aiError: chordAiError,
+    requestAiReview: requestChordAiReview,
   } = useMusicRecognition("chord", chordCandidates);
   const {
     listening: strumListening,
@@ -261,10 +264,11 @@ export function PracticeGame() {
 
     fetch(`/api/daily-state?date=${practiceDateRef.current}`)
       .then((response) => response.json())
-      .then((data: { state?: Partial<DailyPracticeSnapshot> | null; updatedAt?: number }) => {
+      .then((data: { signedIn?: boolean; persistenceAvailable?: boolean; state?: Partial<DailyPracticeSnapshot> | null; updatedAt?: number }) => {
         if (!cancelled && data.state && (data.updatedAt ?? 0) > localUpdatedAt) applySnapshot(data.state);
+        if (!cancelled) setSyncStatus(data.signedIn && data.persistenceAvailable !== false ? "synced" : "local");
       })
-      .catch(() => undefined)
+      .catch(() => { if (!cancelled) setSyncStatus("local"); })
       .finally(() => { if (!cancelled) setMemoryReady(true); });
     return () => { cancelled = true; };
   }, [applySnapshot]);
@@ -286,7 +290,10 @@ export function PracticeGame() {
           method: "PUT",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ date: practiceDateRef.current, state: snapshot, updatedAt }),
-        }).catch(() => undefined);
+        }).then((response) => {
+          if (response.ok) setSyncStatus("synced");
+          else setSyncStatus(response.status === 401 ? "local" : "failed");
+        }).catch(() => setSyncStatus("failed"));
       }
     }, 280);
     return () => window.clearTimeout(timer);
@@ -483,7 +490,7 @@ export function PracticeGame() {
             <p className="eyebrow">今日安排</p>
             <h2>{goal} 分钟日课</h2>
             <span>已完成 {totalDone} 分钟 · {completed.length} / {taskMeta.length} 项</span>
-            <small className="memory-status"><Cloud size={13} />{memoryReady ? "今日进度已记住" : "正在恢复今日进度"}</small>
+            <small className={`memory-status ${syncStatus === "failed" ? "sync-failed" : ""}`}><Cloud size={13} />{!memoryReady || syncStatus === "loading" ? "正在恢复今日进度" : syncStatus === "synced" ? "今日进度已同步" : syncStatus === "failed" ? "已保存在本机，云端同步失败" : "已保存在本机浏览器"}</small>
           </div>
           <div className="segmented-control goal-control" aria-label="选择今日练习时长">
             {[60, 90, 120].map((minutes) => (
@@ -507,6 +514,7 @@ export function PracticeGame() {
           })}
         </div>
       </section>
+      <AudioCalibrationWizard />
 
       {(activeTask === "spider" || activeTask === "chord" || activeTask === "strum") ? (
         <section className="training-workbench">
@@ -602,6 +610,11 @@ export function PracticeGame() {
             <div className="session-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>
             {activeTask === "chord" && chordError && <p className="recognition-error">{chordError}</p>}
             {activeTask === "chord" && chordAiError && <p className="recognition-error">AI 复核未完成：{chordAiError}</p>}
+            {activeTask === "chord" && chordListening && (
+              <button className="ai-review-button" onClick={requestChordAiReview} disabled={chordAiChecking || chordCalibration !== "ready"}>
+                <Sparkles size={15} />{chordAiChecking ? "AI 正在复核" : "将刚才的和弦交给 AI 复核"}
+              </button>
+            )}
             {activeTask === "strum" && strumError && <p className="recognition-error">{strumError}</p>}
 
             <div className={pain >= 3 ? "pain-check warning" : "pain-check compact"}>

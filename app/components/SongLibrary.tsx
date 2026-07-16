@@ -4,10 +4,10 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, Check, ChevronRight, Gauge, Guitar, LibraryBig, Music2, ScanLine, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { songQuests, type LearningTrack } from "../data/curriculum";
-import { AiRecognitionSettings } from "./AiRecognitionSettings";
 import { AppShell } from "./AppShell";
 import { ChordDiagramSet } from "./ChordDiagram";
 import { StaffNotation } from "./StaffNotation";
+import { ScoreWorkbench } from "./ScoreWorkbench";
 import { TrialPlayer } from "./TrialPlayer";
 
 export function SongLibrary() {
@@ -37,8 +37,6 @@ export function SongLibrary() {
         <label className="level-filter"><span>难度</span><select value={level} onChange={(event) => setLevel(Number(event.target.value))}><option value={0}>全部等级</option>{[1,2,3,4,5,6,7,8].map((value) => <option key={value} value={value}>Lv. {value}</option>)}</select></label>
         <Link href="/import-score" className="primary-action"><ScanLine size={17} />导入我的曲谱</Link>
       </div>
-
-      <AiRecognitionSettings />
 
       <div className="library-layout">
         <section className="song-list-panel" aria-label="歌曲列表">
@@ -71,6 +69,8 @@ export function SongLibrary() {
             <StaffNotation song={selected} />
             <p>{selected.pattern}</p>
           </div>
+
+          <ScoreWorkbench key={`${selected.id}-workbench`} song={selected} />
 
           {selected.chords && (
             <section className="score-chord-section" aria-label="本曲和弦图">

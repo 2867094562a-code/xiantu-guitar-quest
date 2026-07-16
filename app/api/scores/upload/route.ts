@@ -16,6 +16,11 @@ type ScoreAnalysis = {
   noteCount?: number | null;
   confidence?: number;
   recognizedText?: string;
+  chords?: string[];
+  rhythmSummary?: string;
+  notationSummary?: string;
+  capo?: number;
+  capoReason?: string;
 };
 
 function safeFileName(value: string) {
@@ -71,7 +76,13 @@ export async function POST(request: Request) {
     measureCount: analysis.measureCount ? Math.round(analysis.measureCount) : null,
     noteCount: analysis.noteCount ? Math.round(analysis.noteCount) : null,
     confidence: Math.max(0, Math.min(100, Math.round(analysis.confidence ?? 0))),
-    recognizedText: analysis.recognizedText?.slice(0, 10000) || null,
+    recognizedText: [
+      analysis.recognizedText,
+      Array.isArray(analysis.chords) && analysis.chords.length ? `和弦：${analysis.chords.join(" ")}` : "",
+      analysis.rhythmSummary ? `节奏：${analysis.rhythmSummary}` : "",
+      analysis.notationSummary ? `五线谱：${analysis.notationSummary}` : "",
+      typeof analysis.capo === "number" ? `变调夹：${analysis.capo ? `第 ${analysis.capo} 品` : "不使用"}${analysis.capoReason ? `（${analysis.capoReason}）` : ""}` : "",
+    ].filter(Boolean).join("\n").slice(0, 10000) || null,
     status: "reviewed",
     createdAt: now,
     updatedAt: now,

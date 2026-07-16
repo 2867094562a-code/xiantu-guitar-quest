@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { AiSettingsDialog } from "./AiSettingsDialog";
 
 const navItems = [
   { href: "/", label: "今日", icon: Guitar },
@@ -94,6 +95,7 @@ export function AppShell({
         </nav>
 
         <div className="player-status" aria-label="练习状态">
+          <AiSettingsDialog />
           {me?.signedIn ? (
             <>
               <span><Sparkles size={15} />Lv. {level}</span>

@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Bot,
   Check,
   FileImage,
   FileMusic,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "./AppShell";
+import { loadLocalAiSettings } from "../lib/local-ai-settings";
 
 type Analysis = {
   title: string;
@@ -27,6 +29,12 @@ type Analysis = {
   noteCount: number;
   confidence: number;
   recognizedText: string;
+  chords: string[];
+  rhythmSummary: string;
+  notationSummary: string;
+  capo: number;
+  capoReason: string;
+  aiAssisted: boolean;
 };
 
 type SavedScore = {
@@ -51,6 +59,12 @@ const emptyAnalysis: Analysis = {
   noteCount: 0,
   confidence: 0,
   recognizedText: "",
+  chords: [],
+  rhythmSummary: "待 AI 或人工确认",
+  notationSummary: "待 AI 或人工确认",
+  capo: 0,
+  capoReason: "谱面未确认变调夹信息",
+  aiAssisted: false,
 };
 
 function average(values: number[]) {
@@ -185,16 +199,27 @@ async function fileToImage(file: File): Promise<{ image: HTMLImageElement; previ
   return { image, previewUrl, ocrBlob: blob };
 }
 
+async function blobToBase64(blob: Blob) {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("无法读取识谱图片"));
+    reader.readAsDataURL(blob);
+  });
+  return dataUrl.slice(dataUrl.indexOf(",") + 1);
+}
+
 export function ScoreImporter() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [analysis, setAnalysis] = useState<Analysis>(emptyAnalysis);
-  const [phase, setPhase] = useState<"idle" | "loading" | "recognizing" | "review" | "saving" | "saved" | "error">("idle");
+  const [phase, setPhase] = useState<"idle" | "loading" | "recognizing" | "ai-recognizing" | "review" | "saving" | "saved" | "error">("idle");
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
   const [savedScores, setSavedScores] = useState<SavedScore[]>([]);
   const [signedIn, setSignedIn] = useState(false);
+  const ocrBlobRef = useRef<Blob | null>(null);
 
   const loadScores = useCallback(() => {
     fetch("/api/scores").then((response) => response.json()).then((data: { signedIn: boolean; scores: SavedScore[] }) => {
@@ -215,6 +240,7 @@ export function ScoreImporter() {
     try {
       if (preview) URL.revokeObjectURL(preview);
       const rendered = await fileToImage(selected);
+      ocrBlobRef.current = rendered.ocrBlob;
       setPreview(rendered.previewUrl);
       setProgress(24);
       setMessage("正在检测五线谱、谱表和小节线……");
@@ -261,6 +287,55 @@ export function ScoreImporter() {
     void analyze(selected);
   };
 
+  const recognizeWithAi = async () => {
+    const blob = ocrBlobRef.current;
+    const settings = loadLocalAiSettings();
+    if (!blob) return;
+    if (!settings.enabled || !settings.apiKey.trim()) {
+      setMessage("请先在页眉的 AI 设置中保存密钥、测试连接并启用 AI 复核。");
+      return;
+    }
+    setPhase("ai-recognizing");
+    setProgress(28);
+    setMessage("正在由 AI 读取五线谱、节奏、和弦、调性与变调夹……");
+    try {
+      const response = await fetch("/api/ai-recognition", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "score",
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          imageBase64: await blobToBase64(blob),
+          imageMimeType: blob.type || "image/png",
+        }),
+      });
+      const result = await response.json() as Partial<Analysis> & { error?: string };
+      if (!response.ok) throw new Error(result.error || "AI 识谱失败");
+      setAnalysis((current) => ({
+        ...current,
+        title: result.title?.trim() || current.title,
+        tempo: typeof result.tempo === "number" && result.tempo >= 30 ? result.tempo : current.tempo,
+        timeSignature: result.timeSignature?.trim() || current.timeSignature,
+        keySignature: result.keySignature?.trim() || current.keySignature,
+        chords: Array.isArray(result.chords) ? result.chords : current.chords,
+        rhythmSummary: result.rhythmSummary?.trim() || current.rhythmSummary,
+        notationSummary: result.notationSummary?.trim() || current.notationSummary,
+        capo: typeof result.capo === "number" ? Math.max(0, Math.min(12, result.capo)) : current.capo,
+        capoReason: result.capoReason?.trim() || current.capoReason,
+        confidence: Math.max(current.confidence, typeof result.confidence === "number" ? result.confidence : 0),
+        aiAssisted: true,
+      }));
+      setProgress(100);
+      setPhase("review");
+      setMessage("AI 深度识谱完成，请逐项确认。未知信息不会自动猜测。");
+    } catch (error) {
+      setPhase("review");
+      setMessage(error instanceof Error ? error.message : "AI 识谱失败，请检查模型是否支持图片理解。");
+    }
+  };
+
   const save = async () => {
     if (!file) return;
     setPhase("saving");
@@ -282,6 +357,7 @@ export function ScoreImporter() {
 
   const reset = () => {
     if (preview) URL.revokeObjectURL(preview);
+    ocrBlobRef.current = null;
     setFile(null); setPreview(""); setAnalysis(emptyAnalysis); setPhase("idle"); setProgress(0); setMessage("");
   };
 
@@ -325,11 +401,17 @@ export function ScoreImporter() {
               <label><span>速度 BPM</span><input type="number" min="30" max="240" value={analysis.tempo} onChange={(event) => setAnalysis({ ...analysis, tempo: Number(event.target.value) })} /></label>
               <label><span>拍号</span><input value={analysis.timeSignature} onChange={(event) => setAnalysis({ ...analysis, timeSignature: event.target.value })} /></label>
               <label><span>调号 / 1=</span><input value={analysis.keySignature} onChange={(event) => setAnalysis({ ...analysis, keySignature: event.target.value })} /></label>
+              <label><span>变调夹</span><select value={analysis.capo} onChange={(event) => setAnalysis({ ...analysis, capo: Number(event.target.value) })}>{Array.from({ length: 13 }, (_, value) => <option key={value} value={value}>{value ? `第 ${value} 品` : "不使用"}</option>)}</select></label>
               <label><span>谱表数</span><input type="number" min="0" value={analysis.staffCount} onChange={(event) => setAnalysis({ ...analysis, staffCount: Number(event.target.value) })} /></label>
               <label><span>近似小节数</span><input type="number" min="0" value={analysis.measureCount} onChange={(event) => setAnalysis({ ...analysis, measureCount: Number(event.target.value) })} /></label>
               <label><span>近似音符数</span><input type="number" min="0" value={analysis.noteCount} onChange={(event) => setAnalysis({ ...analysis, noteCount: Number(event.target.value) })} /></label>
+              <label className="wide-field"><span>识别和弦（以空格分隔）</span><input value={analysis.chords.join(" ")} onChange={(event) => setAnalysis({ ...analysis, chords: event.target.value.split(/\s+/).map((value) => value.trim()).filter(Boolean).slice(0, 24) })} placeholder="例如 C G Am F" /></label>
+              <label className="wide-field"><span>节奏识别</span><input value={analysis.rhythmSummary} onChange={(event) => setAnalysis({ ...analysis, rhythmSummary: event.target.value })} /></label>
+              <label className="wide-field"><span>五线谱内容判断</span><input value={analysis.notationSummary} onChange={(event) => setAnalysis({ ...analysis, notationSummary: event.target.value })} /></label>
+              <label className="wide-field"><span>变调夹判断依据</span><input value={analysis.capoReason} onChange={(event) => setAnalysis({ ...analysis, capoReason: event.target.value })} /></label>
               <label className="wide-field"><span>识别文字</span><textarea value={analysis.recognizedText} onChange={(event) => setAnalysis({ ...analysis, recognizedText: event.target.value })} /></label>
-              <div className="review-warning"><AlertTriangle size={18} /><p><strong>保存前请校对</strong><span>当前版本可稳定辅助提取版面结构和印刷文字，但复杂连音、装饰音、手写谱与完整逐音高识别仍可能出错。</span></p></div>
+              <div className="review-warning"><AlertTriangle size={18} /><p><strong>保存前请校对</strong><span>{analysis.aiAssisted ? "AI 已参与读取，但复杂连音、装饰音、手写谱与逐音高仍需以原谱为准。" : "先完成本机结构识别；需要节奏、和弦、调性和变调夹建议时，可主动调用已配置的 AI。"}</span></p></div>
+              <button className="secondary-action ai-score-button" onClick={recognizeWithAi} disabled={phase === "ai-recognizing"}><Bot size={17} />{phase === "ai-recognizing" ? "AI 正在深度识谱" : "用 AI 深度识别本页曲谱"}</button>
               <button className="primary-action save-score" onClick={save} disabled={phase === "saving"}>{phase === "saving" ? <LoaderCircle className="spin" size={18} /> : phase === "saved" ? <Check size={18} /> : <Save size={18} />}{phase === "saved" ? "已保存到个人曲库" : signedIn ? "确认并保存" : "登录后保存"}</button>
               {message && <p className={phase === "saved" ? "save-message good" : "save-message"}>{message}</p>}
             </div>
