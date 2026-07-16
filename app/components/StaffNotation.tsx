@@ -33,13 +33,14 @@ function normalizeChord(chord: string) {
 function makeMeasure(
   context: ReturnType<Renderer["getContext"]>,
   x: number,
+  y: number,
   width: number,
   entries: Array<{ positions: TabPosition[]; label: string }>,
   first: boolean,
   activeIndex: number,
   offset: number,
 ) {
-  const stave = new TabStave(x, 42, width);
+  const stave = new TabStave(x, y, width);
   if (first) stave.addClef("tab").addTimeSignature("4/4");
   stave.setContext(context).draw();
   const notes = entries.map((entry, index) => {
@@ -55,42 +56,49 @@ function makeMeasure(
 
 export function StaffNotation({ song, activeIndex = -1, compact = false }: { song: SongQuest; activeIndex?: number; compact?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const sections = song.track === "singing" ? ["前奏", "主歌", "副歌", "尾奏"] : ["前奏", "主题 A", "主题 B", "尾奏"];
+  const entryCount = compact ? 8 : 16;
   const entries = useMemo(() => {
     if (song.track === "singing") {
       const chords = song.chords?.length ? song.chords : ["C", "G", "Am", "Fmaj7"];
-      return Array.from({ length: 8 }, (_, index) => {
+      return Array.from({ length: entryCount }, (_, index) => {
         const label = chords[index % chords.length];
         return { positions: CHORD_TABS[normalizeChord(label)] ?? CHORD_TABS.C, label };
       });
     }
     const notes = song.trialNotes?.length ? song.trialNotes : ["E4", "G4", "B4", "E5"];
-    return Array.from({ length: 8 }, (_, index) => {
+    return Array.from({ length: entryCount }, (_, index) => {
       const label = notes[index % notes.length];
       return { positions: [NOTE_TABS[label] ?? NOTE_TABS.E4], label };
     });
-  }, [song]);
+  }, [entryCount, song]);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     host.replaceChildren();
     const width = compact ? 680 : 820;
-    const height = compact ? 150 : 175;
+    const height = compact ? 150 : 300;
     const renderer = new Renderer(host, Renderer.Backends.SVG);
     renderer.resize(width, height);
     const context = renderer.getContext();
     context.setFont("Arial", 10);
-    const firstWidth = width / 2 - 18;
-    makeMeasure(context, 10, firstWidth, entries.slice(0, 4), true, activeIndex, 0);
-    makeMeasure(context, width / 2, width / 2 - 10, entries.slice(4, 8), false, activeIndex, 4);
+    const measureWidth = width / 2 - 18;
+    makeMeasure(context, 10, 42, measureWidth, entries.slice(0, 4), true, activeIndex, 0);
+    makeMeasure(context, width / 2, 42, width / 2 - 10, entries.slice(4, 8), false, activeIndex, 4);
+    if (!compact) {
+      makeMeasure(context, 10, 164, measureWidth, entries.slice(8, 12), false, activeIndex, 8);
+      makeMeasure(context, width / 2, 164, width / 2 - 10, entries.slice(12, 16), false, activeIndex, 12);
+    }
   }, [activeIndex, compact, entries]);
 
   return (
     <div className="staff-notation-shell guitar-tab-shell">
       <div ref={hostRef} className="staff-notation guitar-tablature" aria-label={`${song.title} 吉他六线谱练习片段`} />
-      <div className="staff-note-labels" aria-hidden="true">
-        {entries.map((entry, index) => <span key={index} className={index === activeIndex ? "active" : ""}>{entry.label}</span>)}
-      </div>
+      {!compact && <div className="tab-section-strip" aria-label="练习编配段落"><strong>练习编配 72%</strong>{sections.map((section) => <span key={section}>{section} · 4 小节</span>)}</div>}
+      {compact && <div className="staff-note-labels" aria-hidden="true">
+        {entries.slice(0, 8).map((entry, index) => <span key={index} className={index === activeIndex ? "active" : ""}>{entry.label}</span>)}
+      </div>}
     </div>
   );
 }

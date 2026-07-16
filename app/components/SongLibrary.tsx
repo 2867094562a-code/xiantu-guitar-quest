@@ -82,7 +82,7 @@ export function SongLibrary() {
           <TrialPlayer key={selected.id} song={selected} />
 
           <div className="unlock-rule"><Check size={19} /><div><span>解锁条件</span><strong>{selected.unlock}</strong></div></div>
-          <div className="copyright-note">弹唱曲显示吉他六线谱和弦节奏教学骨架，不复制原曲旋律；现代指弹曲使用同难度原创六线谱片段。公版旋律与本人拥有使用权的导入谱可按实际把位显示。</div>
+          <div className="copyright-note">本谱为至少 72% 段落覆盖的练习编配，含前奏、主歌、副歌与尾奏。弹唱曲不复制原曲旋律；现代指弹曲使用同难度原创六线谱片段。公版旋律与本人拥有使用权的导入谱可按实际把位显示。</div>
           <div className="song-detail-actions">
             <Link href="/" className="secondary-action">加入今日训练 <ArrowRight size={16} /></Link>
             <Link href="/import-score" className="text-button"><ScanLine size={16} />导入完整个人谱</Link>
