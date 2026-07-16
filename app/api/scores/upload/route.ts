@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const objectKey = `${user.id}/${Date.now()}-${safeFileName(file.name)}`;
   const storedFile = await put(objectKey, file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: file.type,
   });
