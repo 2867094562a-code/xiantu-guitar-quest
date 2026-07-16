@@ -720,6 +720,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .practice-score > p { margin: 13px 0 0; color: var(--ink-soft); font-size: 11px; }
 .staff-notation-shell { margin-top: 10px; border: 1px solid var(--line); background: #fffef9; overflow-x: auto; }
 .guitar-tab-shell { background: linear-gradient(90deg, rgba(66,104,85,.035), #fffef9 18%, #fffef9 82%, rgba(163,58,44,.035)); }
+.beat-stage.preparing .beat-orbit{animation:prepareOrbit 1s ease-in-out infinite}.prepare-countdown{position:absolute;left:50%;bottom:19px;z-index:3;transform:translateX(-50%);margin:0;padding:6px 10px;border:1px solid rgba(163,58,44,.28);border-radius:6px;background:rgba(251,250,246,.9);color:var(--cinnabar);font-size:10px;white-space:nowrap;animation:statusSlide 180ms ease-out}
 .staff-notation { width: 820px; height: 175px; }
 .trial-staff .staff-notation { width: 680px; height: 150px; }
 .staff-notation svg { display: block; width: 100%; height: 100%; }
@@ -920,6 +921,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 @keyframes pageEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes providerActivate { from { opacity: .72; transform: scale(.975); } to { opacity: 1; transform: scale(1); } }
 @keyframes previewPulse { from { transform:scale(.92); } to { transform:scale(1.12); } }
+@keyframes prepareOrbit { 0%,100% { opacity:.35; transform:scale(.96); } 50% { opacity:.9; transform:scale(1.04); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }

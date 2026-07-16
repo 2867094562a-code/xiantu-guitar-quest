@@ -167,6 +167,7 @@ export function PracticeGame() {
   const [strumHits, setStrumHits] = useState(0);
   const [strumExtras, setStrumExtras] = useState(0);
   const [reviewNote, setReviewNote] = useState("");
+  const [preparationSeconds, setPreparationSeconds] = useState(0);
   const [memoryReady, setMemoryReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"loading" | "synced" | "local" | "failed">("loading");
   const cleanSwitchesRef = useRef(0);
@@ -176,7 +177,8 @@ export function PracticeGame() {
   const chordAiTargetRef = useRef({ phase: -1, chord: "" });
   const recognizedStrumPhaseRef = useRef(-1);
   const lastOnsetCountRef = useRef(0);
-  const beat = usePracticeClick(bpm, running && sessionMode === "练习", 4, activeTask === "strum" ? 2 : 1);
+  const isPreparing = preparationSeconds > 0;
+  const beat = usePracticeClick(bpm, running && sessionMode === "练习" && !isPreparing, 4, activeTask === "strum" ? 2 : 1);
   const selectedPair = chordPairs.find((pair) => pair.id === chordPair) ?? chordPairs[0];
   const selectedPattern = spiderPatterns.find((item) => item.id === pattern) ?? spiderPatterns[0];
   const selectedStrum = strumPatterns.find((item) => item.id === strumPattern) ?? strumPatterns[0];
@@ -352,7 +354,13 @@ export function PracticeGame() {
   }, [bpm, pain]);
 
   useEffect(() => {
-    if (!running || sessionDone) return;
+    if (!running || preparationSeconds <= 0) return;
+    const timer = window.setTimeout(() => setPreparationSeconds((value) => Math.max(0, value - 1)), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [preparationSeconds, running]);
+
+  useEffect(() => {
+    if (!running || sessionDone || isPreparing) return;
     const timer = window.setInterval(() => {
       setSecondsLeft((current) => {
         if (current > 1) return current - 1;
@@ -394,7 +402,7 @@ export function PracticeGame() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, selectedStrum.id, sessionDone, sessionMode, sets, stopChordRecognition, stopStrumRecognition, strumDuration, strumHits]);
+  }, [activeTask, chordDuration, currentSet, duration, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, selectedStrum.id, sessionDone, sessionMode, sets, stopChordRecognition, stopStrumRecognition, strumDuration, strumHits]);
 
   const resetSession = () => {
     setRunning(false);
@@ -411,6 +419,7 @@ export function PracticeGame() {
     setCleanSwitches(0);
     setStrumHits(0);
     setStrumExtras(0);
+    setPreparationSeconds(0);
     setSessionDone(false);
     setSecondsLeft(activeTask === "chord" ? chordDuration : activeTask === "strum" ? strumDuration : duration);
   };
@@ -426,6 +435,7 @@ export function PracticeGame() {
     setCleanSwitches(0);
     setStrumHits(0);
     setStrumExtras(0);
+    setPreparationSeconds(0);
     setSecondsLeft(id === "chord" ? chordDuration : id === "strum" ? strumDuration : duration);
   };
 
@@ -448,6 +458,7 @@ export function PracticeGame() {
     setPain(value);
     if (value >= 3 && activeTask !== "strum") {
       setRunning(false);
+      setPreparationSeconds(0);
       stopChordRecognition();
     }
   };
@@ -455,6 +466,7 @@ export function PracticeGame() {
   const toggleSession = async () => {
     if (running) {
       setRunning(false);
+      setPreparationSeconds(0);
       if (activeTask === "chord") stopChordRecognition();
       if (activeTask === "strum") stopStrumRecognition();
       return;
@@ -471,6 +483,7 @@ export function PracticeGame() {
       const microphoneReady = await startStrumRecognition();
       if (!microphoneReady) return;
     }
+    setPreparationSeconds(5);
     setRunning(true);
   };
 
@@ -563,7 +576,7 @@ export function PracticeGame() {
               </div>
             </header>
 
-            <div className={`beat-stage ${running ? "running" : ""} ${sessionMode === "休息" ? "resting" : ""}`}>
+            <div className={`beat-stage ${running ? "running" : ""} ${sessionMode === "休息" ? "resting" : ""} ${isPreparing ? "preparing" : ""}`}>
               <div className="beat-orbit" aria-hidden="true"><span /><span /><span /></div>
               {activeTask === "spider" ? (
                 <div className="finger-sequence">
@@ -586,7 +599,8 @@ export function PracticeGame() {
                   ))}
                 </div>
               )}
-              <div className="console-timer"><span>{sessionDone ? "完成" : sessionMode}</span><strong>{formatTime(secondsLeft)}</strong></div>
+              <div className="console-timer"><span>{isPreparing ? "准备" : sessionDone ? "完成" : sessionMode}</span><strong>{isPreparing ? formatTime(preparationSeconds) : formatTime(secondsLeft)}</strong></div>
+              {isPreparing && <p className="prepare-countdown">调整坐姿与右手位置，{preparationSeconds} 秒后从第 1 拍开始</p>}
               {activeTask !== "strum" && <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>}
               {activeTask === "chord" && (
                 <div className={`mic-judgement ${detectedChord === currentChord ? "correct" : ""}`}>
