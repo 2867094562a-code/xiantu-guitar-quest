@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Pause, Play, Volume2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Annotation, Formatter, Renderer, TabNote, TabStave, Voice } from "vexflow";
 import type { SongQuest } from "../data/curriculum";
 
@@ -26,8 +27,15 @@ const NOTE_TABS: Record<string, TabPosition> = {
   "C4": { str: 2, fret: "1" }, "D4": { str: 2, fret: "3" }, "E4": { str: 1, fret: "0" }, "F4": { str: 1, fret: "1" }, "F#4": { str: 1, fret: "2" }, "G4": { str: 1, fret: "3" }, "A4": { str: 1, fret: "5" }, "B4": { str: 2, fret: "0" }, "C5": { str: 1, fret: "8" }, "D5": { str: 1, fret: "10" }, "E5": { str: 1, fret: "12" },
 };
 
+const STRING_FREQUENCIES: Record<number, number> = { 6: 82.41, 5: 110, 4: 146.83, 3: 196, 2: 246.94, 1: 329.63 };
+
 function normalizeChord(chord: string) {
   return chord === "小 F" ? "F" : chord.replace(/\s/g, "");
+}
+
+function trainingTempo(value: string) {
+  const tempo = Number(value.match(/\d+/)?.[0] ?? 60);
+  return Math.max(40, Math.min(100, tempo));
 }
 
 function makeMeasure(
@@ -56,6 +64,11 @@ function makeMeasure(
 
 export function StaffNotation({ song, activeIndex = -1, compact = false }: { song: SongQuest; activeIndex?: number; compact?: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const playbackTimerRef = useRef<number | null>(null);
+  const pluckTimersRef = useRef<number[]>([]);
+  const [playing, setPlaying] = useState(false);
+  const [playbackIndex, setPlaybackIndex] = useState(-1);
   const sections = song.track === "singing" ? ["前奏", "主歌", "副歌", "尾奏"] : ["前奏", "主题 A", "主题 B", "尾奏"];
   const entryCount = compact ? 8 : 16;
   const entries = useMemo(() => {
@@ -73,6 +86,54 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
     });
   }, [entryCount, song]);
 
+  const stopPlayback = useCallback(() => {
+    if (playbackTimerRef.current !== null) window.clearInterval(playbackTimerRef.current);
+    pluckTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    playbackTimerRef.current = null;
+    pluckTimersRef.current = [];
+    setPlaying(false);
+    setPlaybackIndex(-1);
+  }, []);
+
+  const playEntry = useCallback((entry: { positions: TabPosition[] }) => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const context = audioRef.current ?? new AudioContextClass();
+    audioRef.current = context;
+    void context.resume();
+    entry.positions.forEach((position, index) => {
+      const timer = window.setTimeout(() => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const frequency = STRING_FREQUENCIES[position.str] * 2 ** (Number(position.fret) / 12);
+        oscillator.type = "triangle";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.085, context.currentTime + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.62);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.66);
+      }, entry.positions.length > 1 ? index * 42 : 0);
+      pluckTimersRef.current.push(timer);
+    });
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    if (playing) { stopPlayback(); return; }
+    let index = 0;
+    setPlaying(true);
+    setPlaybackIndex(index);
+    playEntry(entries[index]);
+    const beatLength = 60_000 / trainingTempo(song.trainingBpm);
+    playbackTimerRef.current = window.setInterval(() => {
+      index = (index + 1) % entries.length;
+      setPlaybackIndex(index);
+      playEntry(entries[index]);
+    }, beatLength * (song.track === "singing" ? 4 : 2));
+  }, [entries, playEntry, playing, song.track, song.trainingBpm, stopPlayback]);
+
+  const highlightedIndex = activeIndex >= 0 ? activeIndex : playbackIndex;
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -84,20 +145,23 @@ export function StaffNotation({ song, activeIndex = -1, compact = false }: { son
     const context = renderer.getContext();
     context.setFont("Arial", 10);
     const measureWidth = width / 2 - 18;
-    makeMeasure(context, 10, 42, measureWidth, entries.slice(0, 4), true, activeIndex, 0);
-    makeMeasure(context, width / 2, 42, width / 2 - 10, entries.slice(4, 8), false, activeIndex, 4);
+    makeMeasure(context, 10, 42, measureWidth, entries.slice(0, 4), true, highlightedIndex, 0);
+    makeMeasure(context, width / 2, 42, width / 2 - 10, entries.slice(4, 8), false, highlightedIndex, 4);
     if (!compact) {
-      makeMeasure(context, 10, 164, measureWidth, entries.slice(8, 12), false, activeIndex, 8);
-      makeMeasure(context, width / 2, 164, width / 2 - 10, entries.slice(12, 16), false, activeIndex, 12);
+      makeMeasure(context, 10, 164, measureWidth, entries.slice(8, 12), false, highlightedIndex, 8);
+      makeMeasure(context, width / 2, 164, width / 2 - 10, entries.slice(12, 16), false, highlightedIndex, 12);
     }
-  }, [activeIndex, compact, entries]);
+  }, [compact, entries, highlightedIndex]);
+
+  useEffect(() => () => { stopPlayback(); void audioRef.current?.close(); }, [stopPlayback]);
 
   return (
     <div className="staff-notation-shell guitar-tab-shell">
       <div ref={hostRef} className="staff-notation guitar-tablature" aria-label={`${song.title} 吉他六线谱练习片段`} />
+      {!compact && <div className="tab-playback-bar"><button className={`secondary-action${playing ? " playing" : ""}`} onClick={togglePlayback}>{playing ? <Pause size={16} /> : <Play size={16} />}{playing ? "暂停试听" : "试听六线谱"}</button><span><Volume2 size={14} />{trainingTempo(song.trainingBpm)} BPM · {song.track === "singing" ? "每个和弦 4 拍" : "每个音 2 拍"}</span></div>}
       {!compact && <div className="tab-section-strip" aria-label="练习编配段落"><strong>练习编配 72%</strong>{sections.map((section) => <span key={section}>{section} · 4 小节</span>)}</div>}
       {compact && <div className="staff-note-labels" aria-hidden="true">
-        {entries.slice(0, 8).map((entry, index) => <span key={index} className={index === activeIndex ? "active" : ""}>{entry.label}</span>)}
+        {entries.slice(0, 8).map((entry, index) => <span key={index} className={index === highlightedIndex ? "active" : ""}>{entry.label}</span>)}
       </div>}
     </div>
   );

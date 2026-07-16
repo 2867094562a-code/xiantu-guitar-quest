@@ -726,6 +726,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .trial-staff .staff-notation { width: 680px; height: 150px; }
 .staff-notation svg { display: block; width: 100%; height: 100%; }
 .tab-section-strip{min-width:820px;display:grid;grid-template-columns:1.2fr repeat(4,1fr);border-top:1px solid var(--line);background:rgba(66,104,85,.04)}.tab-section-strip strong,.tab-section-strip span{min-height:31px;padding:0 10px;display:flex;align-items:center;border-right:1px solid var(--line);font-size:9px}.tab-section-strip strong{color:var(--jade)}.tab-section-strip span{color:var(--ink-soft)}.tab-section-strip span:last-child{border-right:0}
+.tab-playback-bar{min-width:820px;min-height:48px;padding:7px 12px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);background:rgba(29,33,31,.025)}.tab-playback-bar .secondary-action{min-height:32px}.tab-playback-bar .secondary-action.playing{border-color:var(--jade);color:var(--jade);background:rgba(66,104,85,.08)}.tab-playback-bar>span{display:flex;align-items:center;gap:5px;color:var(--ink-soft);font-size:10px}
 .staff-note-labels { min-width: 820px; margin-top: -31px; padding: 0 22px 9px 92px; display: grid; grid-template-columns: repeat(8, 1fr); position: relative; pointer-events: none; }
 .trial-staff .staff-note-labels { min-width: 680px; padding-left: 78px; }
 .staff-note-labels span { text-align: center; color: var(--ink-soft); font: 10px Georgia, serif; }
