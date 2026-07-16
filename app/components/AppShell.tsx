@@ -114,21 +114,23 @@ export function AppShell({
       </header>
 
       <main>
-        <section className="page-intro">
-          <div>
-            <p className="eyebrow">{eyebrow}</p>
-            <h1>{title}</h1>
-            <p>{description}</p>
-          </div>
-          <div className="ink-progress" aria-label={`本级经验 ${levelXp} / 1600`}>
-            <div className="ink-progress-copy">
-              <span>第 {level} 级修习</span>
-              <strong>{levelXp} / 1600</strong>
+        <div className="page-transition" key={pathname}>
+          <section className="page-intro">
+            <div>
+              <p className="eyebrow">{eyebrow}</p>
+              <h1>{title}</h1>
+              <p>{description}</p>
             </div>
-            <div className="ink-progress-track"><span style={{ width: `${Math.max(2, levelXp / 16)}%` }} /></div>
-          </div>
-        </section>
-        {children}
+            <div className="ink-progress" aria-label={`本级经验 ${levelXp} / 1600`}>
+              <div className="ink-progress-copy">
+                <span>第 {level} 级修习</span>
+                <strong>{levelXp} / 1600</strong>
+              </div>
+              <div className="ink-progress-track"><span style={{ width: `${Math.max(2, levelXp / 16)}%` }} /></div>
+            </div>
+          </section>
+          {children}
+        </div>
       </main>
 
       <footer className="site-footer">

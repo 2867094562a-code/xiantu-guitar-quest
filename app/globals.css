@@ -117,13 +117,14 @@ textarea:focus-visible {
 .header-ai-button { min-height: 34px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-dark); background: rgba(251,250,246,0.58); color: var(--ink); cursor: pointer; transition: transform 160ms ease, color 160ms ease, border-color 160ms ease, background 160ms ease; }
 .header-ai-button:hover { color: var(--cinnabar); border-color: var(--cinnabar); background: var(--white-ink); transform: translateY(-1px); }
 .header-ai-button:active { transform: translateY(0) scale(0.98); }
-.ai-settings-dialog { width: min(760px, calc(100vw - 28px)); max-height: min(820px, calc(100vh - 28px)); padding: 0; border: 1px solid var(--line-dark); background: var(--paper); color: var(--ink); box-shadow: 8px 10px 0 rgba(29,33,31,0.14); animation: dialogEnter 180ms ease-out; }
-.ai-settings-dialog::backdrop { background: rgba(29,33,31,0.42); backdrop-filter: blur(2px); animation: fadeIn 160ms ease-out; }
+.ai-settings-dialog { position: fixed; inset: 0; width: min(820px, calc(100vw - 40px)); max-height: min(760px, calc(100vh - 40px)); margin: auto; padding: 0; overflow: auto; border: 1px solid rgba(29,33,31,0.46); border-radius: 14px; background: var(--paper); color: var(--ink); box-shadow: 0 24px 70px rgba(18,22,20,0.3), 8px 10px 0 rgba(29,33,31,0.11); animation: dialogEnter 260ms cubic-bezier(.2,.8,.2,1); }
+.ai-settings-dialog::backdrop { background: rgba(20,24,22,0.46); backdrop-filter: blur(5px) saturate(.86); animation: fadeIn 220ms ease-out; }
 .ai-settings-dialog .ai-settings-panel { margin: 0; border: 0; }
-.dialog-close { width: 36px; height: 36px; position: absolute; right: 9px; top: 9px; z-index: 2; display: grid; place-items: center; border: 1px solid var(--line-dark); background: var(--paper); cursor: pointer; transition: transform 150ms ease, color 150ms ease; }
-.dialog-close:hover { color: var(--cinnabar); transform: rotate(90deg); }
+.dialog-close { width: 36px; height: 36px; position: absolute; right: 13px; top: 13px; z-index: 2; display: grid; place-items: center; border: 1px solid var(--line-dark); border-radius: 9px; background: rgba(251,250,246,.92); cursor: pointer; transition: transform 180ms ease, color 180ms ease, background 180ms ease; }
+.dialog-close:hover { color: var(--cinnabar); background: var(--white-ink); transform: rotate(90deg) scale(1.04); }
 
 main { width: min(1480px, calc(100% - 7vw)); margin: 0 auto; padding: 28px 0 46px; }
+.page-transition { animation: pageEnter 280ms cubic-bezier(.2,.75,.25,1); }
 
 .page-intro {
   display: flex;
@@ -668,7 +669,7 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .ai-provider-switch { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
 .ai-provider-switch button { min-height: 54px; border: 0; border-right: 1px solid var(--line); background: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; cursor: pointer; }
 .ai-provider-switch button:last-child { border-right: 0; }
-.ai-provider-switch button.active { background: var(--ink); color: var(--white-ink); }
+.ai-provider-switch button.active { background: var(--ink); color: var(--white-ink); animation: providerActivate 220ms cubic-bezier(.2,.8,.2,1); }
 .ai-provider-switch small { color: var(--ink-soft); font-size: 9px; }
 .ai-provider-switch button.active small { color: rgba(255,255,255,0.64); }
 .ai-settings-form { padding: 15px 18px; display: grid; grid-template-columns: 1.2fr 0.8fr auto; gap: 14px; align-items: end; }
@@ -911,9 +912,15 @@ select, input[type="text"], input[type="number"], input[type="password"], textar
 .sensitivity-control small { color: var(--ink-soft); font-size: 10px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes dialogEnter { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes dialogEnter { from { opacity: 0; transform: translateY(22px) scale(.96); } 65% { opacity: 1; transform: translateY(-2px) scale(1.008); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes statusSlide { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pageEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes providerActivate { from { opacity: .72; transform: scale(.975); } to { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
 
 @media (max-width: 1260px) {
   .topbar { grid-template-columns: 210px minmax(0, 1fr) 190px; padding-inline: 2vw; }
