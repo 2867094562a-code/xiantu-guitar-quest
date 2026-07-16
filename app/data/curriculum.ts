@@ -10,6 +10,8 @@ export type SongQuest = {
   trainingBpm: string;
   focus: string;
   chords?: string[];
+  trialNotes?: string[];
+  trialSource?: "公版旋律短句" | "原创技术片段";
   pattern: string;
   unlock: string;
 };
@@ -87,7 +89,7 @@ export const fingerstyleStages: CourseStage[] = [
     subtitle: "拇指负责低音，i、m、a 负责高音声部",
     goals: ["PIMA 固定指法", "交替低音不抢拍", "旋律音突出且伴奏更轻"],
     checkpoint: "完成 1-3 首入门独奏曲，速度达到训练目标的 80%",
-    songs: ["童话", "后来", "小幸运", "成都"],
+    songs: ["小星星", "欢乐颂", "绿袖子", "爱的罗曼史"],
   },
   {
     id: "fingerstyle-2",
@@ -97,7 +99,7 @@ export const fingerstyleStages: CourseStage[] = [
     subtitle: "处理把位移动、延音与段落连接",
     goals: ["旋律和低音音量分层", "换把时保持旋律连贯", "积累 6-8 首完整曲"],
     checkpoint: "低音连续、旋律清晰，错误后可在下一小节恢复",
-    songs: ["稻香", "晴天", "七里香", "夜空中最亮的星"],
+    songs: ["卡农", "泪", "风之诗", "黄昏"],
   },
   {
     id: "fingerstyle-3",
@@ -107,7 +109,7 @@ export const fingerstyleStages: CourseStage[] = [
     subtitle: "技巧服务旋律，不为炫技牺牲节拍",
     goals: ["击勾弦、滑音、自然泛音", "基础拍弦与动态控制", "复杂段落分层练习"],
     checkpoint: "装饰音进入原拍位，录音中无明显音量突变",
-    songs: ["花海", "青花瓷", "贝加尔湖畔", "大鱼"],
+    songs: ["Rylynn", "Drifting", "Fight", "Passionflower"],
   },
   {
     id: "fingerstyle-4",
@@ -117,7 +119,7 @@ export const fingerstyleStages: CourseStage[] = [
     subtitle: "从理解和声开始做自己的指弹编配",
     goals: ["选择调性与把位", "编写前奏、间奏与结尾", "完成 5 首高完成度录音"],
     checkpoint: "10-20 首独奏曲目，5 首可公开演出的作品",
-    songs: ["起风了", "如愿", "这世界那么多人", "追光者"],
+    songs: ["公版曲改编", "现代指弹技术曲", "个人原创", "录音作品集"],
   },
 ];
 
@@ -136,16 +138,18 @@ export const songQuests: SongQuest[] = [
   { id: "stars", title: "夜空中最亮的星", artist: "逃跑计划", track: "singing", level: 6, stage: "舞台弹唱", trainingBpm: "70-86", focus: "长句呼吸与动态", chords: ["C", "G", "Am", "F"], pattern: "主歌克制、副歌打开", unlock: "可连续完成两首歌" },
   { id: "wind", title: "起风了", artist: "买辣椒也用券", track: "singing", level: 7, stage: "综合挑战", trainingBpm: "68-84", focus: "密集歌词与段落速度", chords: ["C", "G", "Am", "Em", "F"], pattern: "半速朗读到原训练速度", unlock: "可独立拆分歌曲结构" },
   { id: "wish", title: "如愿", artist: "王菲", track: "singing", level: 8, stage: "演出曲目", trainingBpm: "60-76", focus: "音色、呼吸与情绪弧线", chords: ["C", "G", "Am", "F", "Dm", "Em"], pattern: "分解与扫弦按段落切换", unlock: "录音复盘能指出三项改进" },
-  { id: "fairytale-fs", title: "童话", artist: "光良", track: "fingerstyle", level: 1, stage: "单旋律", trainingBpm: "48-60", focus: "旋律连贯与固定指法", pattern: "旋律单练，再加每小节根音", unlock: "PIMA 空弦 60 BPM 稳定" },
-  { id: "later-fs", title: "后来", artist: "刘若英", track: "fingerstyle", level: 1, stage: "PIMA 入门", trainingBpm: "50-62", focus: "旋律突出、伴奏轻弹", pattern: "低音 40%，旋律 70% 音量", unlock: "单旋律可完整弹奏" },
-  { id: "luck-fs", title: "小幸运", artist: "田馥甄", track: "fingerstyle", level: 2, stage: "旋律加低音", trainingBpm: "52-66", focus: "拇指独立与延音", pattern: "每拍低音，旋律保持连贯", unlock: "交替低音 2 分钟不断拍" },
-  { id: "chengdu-fs", title: "成都", artist: "赵雷", track: "fingerstyle", level: 2, stage: "双声部", trainingBpm: "54-68", focus: "低音线与高音旋律", pattern: "先拆两声部，再两小节合并", unlock: "低音、旋律可分别背奏" },
-  { id: "sunny-fs", title: "晴天", artist: "周杰伦", track: "fingerstyle", level: 3, stage: "换把连接", trainingBpm: "56-70", focus: "把位移动与开放弦衔接", pattern: "换把前保留公共音", unlock: "两小节连接可重复 5 次无停顿" },
-  { id: "rice-fs", title: "稻香", artist: "周杰伦", track: "fingerstyle", level: 3, stage: "律动双声部", trainingBpm: "58-72", focus: "低音律动与旋律错位", pattern: "节拍器只点 2、4 拍", unlock: "普通四拍下可稳定演奏" },
-  { id: "china-blue", title: "青花瓷", artist: "周杰伦", track: "fingerstyle", level: 5, stage: "装饰音", trainingBpm: "54-68", focus: "击勾弦与滑音音色", pattern: "装饰音前后主拍位置不变", unlock: "击勾弦音量接近拨弦音" },
-  { id: "big-fish", title: "大鱼", artist: "周深", track: "fingerstyle", level: 6, stage: "泛音与动态", trainingBpm: "50-64", focus: "自然泛音、延音与呼吸", pattern: "旋律句尾留足时值", unlock: "12 品泛音可稳定发声" },
-  { id: "wind-fs", title: "起风了", artist: "买辣椒也用券", track: "fingerstyle", level: 7, stage: "完整编配", trainingBpm: "54-70", focus: "多段落与密集旋律", pattern: "按 A/B/C 段分别录音验收", unlock: "可稳定完成 3 首中级独奏曲" },
-  { id: "wish-fs", title: "如愿", artist: "王菲", track: "fingerstyle", level: 8, stage: "作品集", trainingBpm: "50-66", focus: "个人编配与录音", pattern: "先写低音骨架，再补旋律内声部", unlock: "能独立标注调性、和声与结构" },
+  { id: "twinkle-fs", title: "小星星", artist: "法国民歌", track: "fingerstyle", level: 1, stage: "单音入门", trainingBpm: "46-58", focus: "一弦旋律与均匀时值", trialNotes: ["C4", "C4", "G4", "G4", "A4", "A4", "G4", "E4"], trialSource: "公版旋律短句", pattern: "每两拍一个音，先唱音名再弹", unlock: "连续 8 个音均落在节拍内" },
+  { id: "ode-fs", title: "欢乐颂", artist: "贝多芬", track: "fingerstyle", level: 1, stage: "旋律连贯", trainingBpm: "48-60", focus: "相邻音移动与延音", trialNotes: ["E4", "E4", "F4", "G4", "G4", "F4", "E4", "D4"], trialSource: "公版旋律短句", pattern: "保留手指，避免每个音都抬高手掌", unlock: "旋律短句可重复 3 次无断拍" },
+  { id: "greensleeves-fs", title: "绿袖子", artist: "英格兰民歌", track: "fingerstyle", level: 2, stage: "三拍子旋律", trainingBpm: "50-62", focus: "3/4 拍与弱起", trialNotes: ["A4", "C5", "D5", "E5", "F5", "E5", "D5", "B4"], trialSource: "公版旋律短句", pattern: "强-弱-弱分组，句尾留足时值", unlock: "能口数三拍并保持旋律连贯" },
+  { id: "romance-fs", title: "爱的罗曼史", artist: "西班牙传统曲", track: "fingerstyle", level: 2, stage: "轮指分解", trainingBpm: "52-64", focus: "a-m-i 连续与旋律突出", trialNotes: ["E4", "G4", "B4", "E5", "B4", "G4", "E4", "B3"], trialSource: "公版旋律短句", pattern: "高音旋律 70%，内声部 40% 音量", unlock: "a-m-i 可连续 2 分钟不乱指" },
+  { id: "canon-fs", title: "D 大调卡农", artist: "帕赫贝尔", track: "fingerstyle", level: 3, stage: "低音进行", trainingBpm: "54-68", focus: "低音骨架与和声方向", trialNotes: ["D3", "A2", "B2", "F#2", "G2", "D2", "G2", "A2"], trialSource: "公版旋律短句", pattern: "先只弹低音，再叠加高音分解", unlock: "八个低音可闭眼定位" },
+  { id: "lagrima-fs", title: "泪", artist: "弗朗西斯科·塔雷加", track: "fingerstyle", level: 3, stage: "双声部歌唱", trainingBpm: "48-60", focus: "旋律、低音与内声部分层", trialNotes: ["E4", "F#4", "G4", "B4", "A4", "G4", "F#4", "E4"], trialSource: "公版旋律短句", pattern: "旋律音先单独唱，再加入轻声伴奏", unlock: "旋律音量稳定高于内声部" },
+  { id: "wind-song-fs", title: "风之诗", artist: "押尾光太郎", track: "fingerstyle", level: 4, stage: "现代指弹音色", trainingBpm: "54-68", focus: "泛音、击勾弦与动态", trialNotes: ["E4", "B4", "G4", "F#4", "E4", "G4", "B4", "E5"], trialSource: "原创技术片段", pattern: "试弹区使用同难度原创片段，不复刻原曲旋律", unlock: "泛音与普通拨弦音量接近" },
+  { id: "twilight-fs", title: "黄昏", artist: "押尾光太郎", track: "fingerstyle", level: 5, stage: "拍弦与旋律", trainingBpm: "56-70", focus: "拍弦不挤占旋律拍位", trialNotes: ["A3", "E4", "A4", "C5", "B4", "G4", "E4", "A3"], trialSource: "原创技术片段", pattern: "先无拍弦完成旋律，再加入每小节一次拍击", unlock: "拍击前后节拍不加速" },
+  { id: "rylynn-fs", title: "Rylynn", artist: "Andy McKee", track: "fingerstyle", level: 6, stage: "开放调弦思维", trainingBpm: "58-72", focus: "延音、击弦与宽把位", trialNotes: ["D3", "A3", "D4", "F#4", "A4", "F#4", "E4", "D4"], trialSource: "原创技术片段", pattern: "试弹区训练开放弦延音与宽把位连接", unlock: "换把时开放弦延音不中断" },
+  { id: "drifting-fs", title: "Drifting", artist: "Andy McKee", track: "fingerstyle", level: 6, stage: "双手点弦", trainingBpm: "50-64", focus: "点弦、拍击与低音独立", trialNotes: ["E3", "B3", "E4", "G4", "B4", "G4", "F#4", "E4"], trialSource: "原创技术片段", pattern: "先把点弦当普通旋律练准，再加入打板动作", unlock: "点弦音量达到普通拨弦的 70%" },
+  { id: "fight-fs", title: "Fight", artist: "押尾光太郎", track: "fingerstyle", level: 7, stage: "高速综合技巧", trainingBpm: "60-76", focus: "连续拍弦、击勾弦与强弱", trialNotes: ["E3", "G3", "A3", "B3", "D4", "E4", "G4", "A4"], trialSource: "原创技术片段", pattern: "每次只提升 2 BPM，清晰度低于 90% 即回退", unlock: "综合片段连续 3 次无节拍断裂" },
+  { id: "passionflower-fs", title: "Passionflower", artist: "Jon Gomm", track: "fingerstyle", level: 8, stage: "作品级控制", trainingBpm: "56-72", focus: "复合节奏、调弦与全琴体音色", trialNotes: ["D3", "A3", "C4", "E4", "G4", "A4", "C5", "D5"], trialSource: "原创技术片段", pattern: "按低音、旋律、打击三层分别录音验收", unlock: "三层均能单独稳定后再合成演奏" },
 ];
 
 export const chordPairs = [

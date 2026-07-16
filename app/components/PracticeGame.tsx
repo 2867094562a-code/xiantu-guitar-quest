@@ -5,12 +5,15 @@ import {
   ArrowRight,
   Check,
   CircleCheck,
+  Cloud,
   Dumbbell,
   Gauge,
   Guitar,
   Hand,
   HeartPulse,
   ListChecks,
+  Mic,
+  MicOff,
   Minus,
   Music2,
   Pause,
@@ -24,10 +27,32 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { chordPairs, songQuests, spiderPatterns } from "../data/curriculum";
+import { useMusicRecognition } from "../hooks/useMusicRecognition";
 import { AppShell } from "./AppShell";
 
 type ExerciseId = "tune" | "spider" | "chord" | "rhythm" | "song" | "review";
 type SessionMode = "练习" | "休息";
+
+type DailyPracticeSnapshot = {
+  goal: number;
+  activeTask: ExerciseId;
+  completed: ExerciseId[];
+  bpm: number;
+  duration: number;
+  sets: number;
+  rest: number;
+  pattern: string;
+  pain: number;
+  sessionMode: SessionMode;
+  secondsLeft: number;
+  currentSet: number;
+  sessionDone: boolean;
+  chordPair: string;
+  beatsPerChord: number;
+  chordDuration: number;
+  cleanSwitches: number;
+  reviewNote: string;
+};
 
 const planMinutes: Record<number, Record<ExerciseId, number>> = {
   60: { tune: 5, spider: 8, chord: 12, rhythm: 10, song: 20, review: 5 },
@@ -47,6 +72,14 @@ const taskMeta: Array<{ id: ExerciseId; title: string; detail: string; icon: typ
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${minutes.toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+}
+
+function localDateKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
@@ -118,10 +151,25 @@ export function PracticeGame() {
   const [beatsPerChord, setBeatsPerChord] = useState(4);
   const [chordDuration, setChordDuration] = useState(60);
   const [cleanSwitches, setCleanSwitches] = useState(0);
+  const [reviewNote, setReviewNote] = useState("");
+  const [memoryReady, setMemoryReady] = useState(false);
   const cleanSwitchesRef = useRef(0);
+  const lastCloudSyncRef = useRef(0);
+  const practiceDateRef = useRef(localDateKey());
+  const recognizedPhaseRef = useRef(-1);
   const beat = usePracticeClick(bpm, running && sessionMode === "练习", 4);
   const selectedPair = chordPairs.find((pair) => pair.id === chordPair) ?? chordPairs[0];
   const selectedPattern = spiderPatterns.find((item) => item.id === pattern) ?? spiderPatterns[0];
+  const chordCandidates = useMemo(() => [selectedPair.from, selectedPair.to], [selectedPair.from, selectedPair.to]);
+  const {
+    listening: chordListening,
+    detected: detectedChord,
+    confidence: chordConfidence,
+    error: chordError,
+    start: startChordRecognition,
+    stop: stopChordRecognition,
+    clear: clearChordRecognition,
+  } = useMusicRecognition("chord", chordCandidates);
 
   const plan = planMinutes[goal];
   const totalDone = completed.reduce((sum, id) => sum + plan[id], 0);
@@ -135,8 +183,87 @@ export function PracticeGame() {
     const phase = Math.floor(beat / beatsPerChord) % 2;
     return phase === 0 ? selectedPair.from : selectedPair.to;
   }, [beat, beatsPerChord, selectedPair]);
+  const currentChordPhase = Math.floor(beat / beatsPerChord);
+
+  const applySnapshot = useCallback((snapshot: Partial<DailyPracticeSnapshot>) => {
+    if ([60, 90, 120].includes(snapshot.goal ?? 0)) setGoal(snapshot.goal!);
+    if (taskMeta.some((task) => task.id === snapshot.activeTask)) setActiveTask(snapshot.activeTask!);
+    if (Array.isArray(snapshot.completed)) setCompleted(snapshot.completed.filter((id) => taskMeta.some((task) => task.id === id)));
+    if (typeof snapshot.bpm === "number") setBpm(Math.min(120, Math.max(30, snapshot.bpm)));
+    if (typeof snapshot.duration === "number") setDuration(Math.min(120, Math.max(20, snapshot.duration)));
+    if (typeof snapshot.sets === "number") setSets(Math.min(6, Math.max(1, snapshot.sets)));
+    if (typeof snapshot.rest === "number") setRest(Math.min(120, Math.max(30, snapshot.rest)));
+    if (spiderPatterns.some((item) => item.id === snapshot.pattern)) setPattern(snapshot.pattern!);
+    if (typeof snapshot.pain === "number") setPain(Math.min(10, Math.max(0, snapshot.pain)));
+    if (snapshot.sessionMode === "练习" || snapshot.sessionMode === "休息") setSessionMode(snapshot.sessionMode);
+    if (typeof snapshot.secondsLeft === "number") setSecondsLeft(Math.max(0, Math.round(snapshot.secondsLeft)));
+    if (typeof snapshot.currentSet === "number") setCurrentSet(Math.min(6, Math.max(1, snapshot.currentSet)));
+    if (typeof snapshot.sessionDone === "boolean") setSessionDone(snapshot.sessionDone);
+    if (chordPairs.some((pair) => pair.id === snapshot.chordPair)) setChordPair(snapshot.chordPair!);
+    if ([1, 2, 4].includes(snapshot.beatsPerChord ?? 0)) setBeatsPerChord(snapshot.beatsPerChord!);
+    if (typeof snapshot.chordDuration === "number") setChordDuration(Math.min(300, Math.max(30, snapshot.chordDuration)));
+    if (typeof snapshot.cleanSwitches === "number") setCleanSwitches(Math.max(0, snapshot.cleanSwitches));
+    if (typeof snapshot.reviewNote === "string") setReviewNote(snapshot.reviewNote.slice(0, 1000));
+    setRunning(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const storageKey = `xiantu-daily-${practiceDateRef.current}`;
+    let localUpdatedAt = 0;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as { state?: Partial<DailyPracticeSnapshot>; updatedAt?: number };
+        localUpdatedAt = saved.updatedAt ?? 0;
+        window.setTimeout(() => { if (!cancelled && saved.state) applySnapshot(saved.state); }, 0);
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+
+    fetch(`/api/daily-state?date=${practiceDateRef.current}`)
+      .then((response) => response.json())
+      .then((data: { state?: Partial<DailyPracticeSnapshot> | null; updatedAt?: number }) => {
+        if (!cancelled && data.state && (data.updatedAt ?? 0) > localUpdatedAt) applySnapshot(data.state);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setMemoryReady(true); });
+    return () => { cancelled = true; };
+  }, [applySnapshot]);
+
+  useEffect(() => {
+    if (!memoryReady) return;
+    const snapshot: DailyPracticeSnapshot = {
+      goal, activeTask, completed, bpm, duration, sets, rest, pattern, pain,
+      sessionMode, secondsLeft, currentSet, sessionDone, chordPair,
+      beatsPerChord, chordDuration, cleanSwitches, reviewNote,
+    };
+    const timer = window.setTimeout(() => {
+      const updatedAt = Date.now();
+      window.localStorage.setItem(`xiantu-daily-${practiceDateRef.current}`, JSON.stringify({ state: snapshot, updatedAt }));
+      if (!running || updatedAt - lastCloudSyncRef.current >= 5_000) {
+        lastCloudSyncRef.current = updatedAt;
+        fetch("/api/daily-state", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ date: practiceDateRef.current, state: snapshot, updatedAt }),
+        }).catch(() => undefined);
+      }
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [activeTask, beatsPerChord, bpm, chordDuration, chordPair, cleanSwitches, completed, currentSet, duration, goal, memoryReady, pain, pattern, rest, reviewNote, running, secondsLeft, sessionDone, sessionMode, sets]);
 
   useEffect(() => { cleanSwitchesRef.current = cleanSwitches; }, [cleanSwitches]);
+
+  useEffect(() => {
+    if (!running || activeTask !== "chord" || !chordListening) return;
+    if (detectedChord !== currentChord || chordConfidence < 52) return;
+    if (recognizedPhaseRef.current === currentChordPhase) return;
+    recognizedPhaseRef.current = currentChordPhase;
+    const timer = window.setTimeout(() => setCleanSwitches((value) => value + 1), 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTask, chordConfidence, chordListening, currentChord, currentChordPhase, detectedChord, running]);
 
   const saveSession = useCallback((exerciseType: "spider" | "chord", exerciseId: string, seconds: number, extra?: { score?: number }) => {
     fetch("/api/progress", {
@@ -161,6 +288,7 @@ export function PracticeGame() {
 
         if (activeTask === "chord") {
           setRunning(false);
+          stopChordRecognition();
           setSessionDone(true);
           setCompleted((items) => items.includes("chord") ? items : [...items, "chord"]);
           saveSession("chord", selectedPair.id, chordDuration, { score: cleanSwitchesRef.current });
@@ -186,21 +314,13 @@ export function PracticeGame() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "Space" && running && activeTask === "chord") {
-        event.preventDefault();
-        setCleanSwitches((value) => value + 1);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask, running]);
+  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets, stopChordRecognition]);
 
   const resetSession = () => {
     setRunning(false);
+    stopChordRecognition();
+    clearChordRecognition();
+    recognizedPhaseRef.current = -1;
     setSessionMode("练习");
     setCurrentSet(1);
     setCleanSwitches(0);
@@ -209,6 +329,7 @@ export function PracticeGame() {
   };
 
   const selectTask = (id: ExerciseId) => {
+    if (activeTask === "chord") stopChordRecognition();
     setActiveTask(id);
     setRunning(false);
     setSessionDone(false);
@@ -230,7 +351,24 @@ export function PracticeGame() {
 
   const changePain = (value: number) => {
     setPain(value);
-    if (value >= 3) setRunning(false);
+    if (value >= 3) {
+      setRunning(false);
+      stopChordRecognition();
+    }
+  };
+
+  const toggleSession = async () => {
+    if (running) {
+      setRunning(false);
+      if (activeTask === "chord") stopChordRecognition();
+      return;
+    }
+    if (activeTask === "chord") {
+      recognizedPhaseRef.current = -1;
+      const microphoneReady = await startChordRecognition();
+      if (!microphoneReady) return;
+    }
+    setRunning(true);
   };
 
   const markComplete = (id: ExerciseId) => {
@@ -249,6 +387,7 @@ export function PracticeGame() {
             <p className="eyebrow">今日安排</p>
             <h2>{goal} 分钟日课</h2>
             <span>已完成 {totalDone} 分钟 · {completed.length} / {taskMeta.length} 项</span>
+            <small className="memory-status"><Cloud size={13} />{memoryReady ? "今日进度已记住" : "正在恢复今日进度"}</small>
           </div>
           <div className="segmented-control goal-control" aria-label="选择今日练习时长">
             {[60, 90, 120].map((minutes) => (
@@ -308,7 +447,7 @@ export function PracticeGame() {
                 <span>{bpm} BPM · 每拍一次点击{activeTask === "chord" ? ` · 每 ${beatsPerChord} 拍换和弦` : " · 每拍一个音"}</span>
               </div>
               <div className="challenge-actions">
-                <button className="icon-button primary" disabled={pain >= 3 || sessionDone} onClick={() => setRunning((value) => !value)} aria-label={running ? "暂停" : "开始"}>{running ? <Pause /> : <Play />}</button>
+                <button className="icon-button primary" disabled={pain >= 3 || sessionDone} onClick={toggleSession} aria-label={running ? "暂停" : activeTask === "chord" ? "开启麦克风并开始" : "开始"}>{running ? <Pause /> : activeTask === "chord" ? <Mic /> : <Play />}</button>
                 <button className="icon-button" onClick={resetSession} aria-label="重置"><RotateCcw /></button>
               </div>
             </header>
@@ -329,11 +468,18 @@ export function PracticeGame() {
               <div className="console-timer"><span>{sessionDone ? "完成" : sessionMode}</span><strong>{formatTime(secondsLeft)}</strong></div>
               <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>
               {activeTask === "chord" && (
-                <button className="switch-counter" disabled={!running} onClick={() => setCleanSwitches((value) => value + 1)}><Check size={18} />干净完成一次 <strong>{cleanSwitches}</strong></button>
+                <div className={`mic-judgement ${detectedChord === currentChord ? "correct" : ""}`}>
+                  <span className="mic-state">{chordListening ? <Mic size={16} /> : <MicOff size={16} />}{chordListening ? "正在听" : "麦克风未开启"}</span>
+                  <span><small>目标</small><strong>{currentChord}</strong></span>
+                  <span><small>听到</small><strong>{detectedChord || "--"}</strong></span>
+                  <span><small>置信度</small><strong>{chordConfidence || 0}%</strong></span>
+                  <span className="auto-score"><Check size={16} />正确转换 <strong>{cleanSwitches}</strong></span>
+                </div>
               )}
               {sessionDone && <div className="completion-stamp"><CircleCheck size={24} />本项完成</div>}
             </div>
             <div className="session-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>
+            {activeTask === "chord" && chordError && <p className="recognition-error">{chordError}</p>}
 
             <div className={pain >= 3 ? "pain-check warning" : "pain-check compact"}>
               <div className="pain-copy">
@@ -355,7 +501,7 @@ export function PracticeGame() {
             {activeTask === "tune" && <Link href="/tuner" className="secondary-action">打开独立调音器 <ArrowRight size={16} /></Link>}
             {activeTask === "rhythm" && <Link href="/metronome" className="secondary-action">打开独立节拍器 <ArrowRight size={16} /></Link>}
             {activeTask === "song" && <div className="next-song"><span>本周歌曲</span><strong>《{songQuests[1].title}》</strong><small>{songQuests[1].trainingBpm} BPM · {songQuests[1].focus}</small><Link href="/songs">进入分级曲库</Link></div>}
-            {activeTask === "review" && <textarea className="review-note" placeholder="今天最稳定的一处……&#10;明天只改进……" aria-label="今日练习复盘" />}
+            {activeTask === "review" && <textarea className="review-note" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="今天最稳定的一处……&#10;明天只改进……" aria-label="今日练习复盘" />}
           </div>
           <button className={completed.includes(activeTask) ? "complete-task done" : "complete-task"} onClick={() => markComplete(activeTask)}>{completed.includes(activeTask) ? <><Check size={18} />已完成</> : <>完成本项 <ArrowRight size={17} /></>}</button>
         </section>

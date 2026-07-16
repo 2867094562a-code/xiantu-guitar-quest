@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Check, ChevronRight, Gauge, Guitar, LibraryBig, M
 import { useMemo, useState } from "react";
 import { songQuests, type LearningTrack, type SongQuest } from "../data/curriculum";
 import { AppShell } from "./AppShell";
+import { TrialPlayer } from "./TrialPlayer";
 
 function ScoreSkeleton({ song }: { song: SongQuest }) {
   if (song.track === "singing") {
@@ -37,9 +38,9 @@ export function SongLibrary() {
 
   return (
     <AppShell
-      eyebrow="中文流行歌分级曲库"
+      eyebrow="弹唱中文流行歌 · 指弹代表曲"
       title="曲目关卡"
-      description="这里提供训练速度、和弦或指法骨架、技能重点与解锁标准。完整个人曲谱可通过智能识谱导入。"
+      description="弹唱路线使用中文流行歌，指弹路线从公版名曲递进到现代代表曲。每首都可打开麦克风完成短片段试弹。"
     >
       <div className="library-toolbar">
         <div className="path-switcher compact" role="tablist" aria-label="曲目类型">
@@ -84,8 +85,10 @@ export function SongLibrary() {
 
           {selected.chords && <div className="chord-bank"><span>建议和弦</span>{selected.chords.map((chord) => <strong key={chord}>{chord}</strong>)}</div>}
 
+          <TrialPlayer key={selected.id} song={selected} />
+
           <div className="unlock-rule"><Check size={19} /><div><span>解锁条件</span><strong>{selected.unlock}</strong></div></div>
-          <div className="copyright-note">曲库内置的是教学用技能骨架，不包含整首歌词或完整商业曲谱。你拥有使用权的谱可导入后识别拍号、速度与谱表结构。</div>
+          <div className="copyright-note">弹唱曲提供和弦教学骨架；现代指弹曲使用同难度原创试弹片段，不复制完整商业曲谱。你拥有使用权的谱可导入后识别拍号、速度与谱表结构。</div>
           <div className="song-detail-actions">
             <Link href="/" className="secondary-action">加入今日训练 <ArrowRight size={16} /></Link>
             <Link href="/import-score" className="text-button"><ScanLine size={16} />导入完整个人谱</Link>

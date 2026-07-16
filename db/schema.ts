@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -35,6 +35,16 @@ export const practiceSessions = sqliteTable("practice_sessions", {
   painScore: integer("pain_score"),
   completedAt: integer("completed_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const dailyPracticeStates = sqliteTable("daily_practice_states", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  practiceDate: text("practice_date").notNull(),
+  stateJson: text("state_json").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (table) => [
+  uniqueIndex("daily_practice_user_date_unique").on(table.userId, table.practiceDate),
+]);
 
 export const scoreImports = sqliteTable("score_imports", {
   id: text("id").primaryKey(),
