@@ -4,21 +4,40 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  Flame,
+  BookOpenText,
+  CircleUserRound,
   Gauge,
   Guitar,
+  LibraryBig,
+  LogIn,
   Mic2,
   Music2,
+  ScanLine,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 
 const navItems = [
-  { href: "/", label: "闯关训练", icon: Guitar },
+  { href: "/", label: "今日", icon: Guitar },
+  { href: "/paths", label: "修习", icon: BookOpenText },
+  { href: "/songs", label: "曲库", icon: LibraryBig },
+  { href: "/import-score", label: "识谱", icon: ScanLine },
   { href: "/metronome", label: "节拍器", icon: Gauge },
   { href: "/tuner", label: "调音器", icon: Mic2 },
 ];
+
+type MeState = {
+  signedIn: boolean;
+  signInHref?: string;
+  user?: {
+    displayName: string;
+    currentLevel: number;
+    streakDays: number;
+    totalXp: number;
+  };
+};
 
 export function AppShell({
   children,
@@ -32,6 +51,20 @@ export function AppShell({
   description: string;
 }) {
   const pathname = usePathname();
+  const [me, setMe] = useState<MeState | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/me")
+      .then((response) => response.json())
+      .then((data: MeState) => { if (active) setMe(data); })
+      .catch(() => { if (active) setMe({ signedIn: false, signInHref: "/signin-with-chatgpt?return_to=%2Fprofile" }); });
+    return () => { active = false; };
+  }, []);
+
+  const level = me?.user?.currentLevel ?? 1;
+  const xp = me?.user?.totalXp ?? 0;
+  const levelXp = xp % 1600;
 
   return (
     <div className="app-shell">
@@ -44,7 +77,7 @@ export function AppShell({
 
         <nav className="main-nav" aria-label="主要功能">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
               <Link
@@ -53,7 +86,7 @@ export function AppShell({
                 className={active ? "nav-link active" : "nav-link"}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={18} />
+                <Icon size={17} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -61,9 +94,20 @@ export function AppShell({
         </nav>
 
         <div className="player-status" aria-label="练习状态">
-          <span><Sparkles size={16} />Lv. 7</span>
-          <span><Flame size={16} />连续 5 天</span>
-          <span className="safe"><ShieldCheck size={16} />大鱼际 1/10</span>
+          {me?.signedIn ? (
+            <>
+              <span><Sparkles size={15} />Lv. {level}</span>
+              <span className="safe"><ShieldCheck size={15} />连续 {me.user?.streakDays ?? 0} 天</span>
+              <Link href="/profile" className="user-link" title="个人修习档案">
+                <CircleUserRound size={18} />
+                <span>{me.user?.displayName?.split("@")[0]}</span>
+              </Link>
+            </>
+          ) : (
+            <Link href={me?.signInHref ?? "/profile"} className="user-link">
+              <LogIn size={17} /><span>登录存进度</span>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -74,12 +118,12 @@ export function AppShell({
             <h1>{title}</h1>
             <p>{description}</p>
           </div>
-          <div className="ink-progress" aria-label="本级经验 1240 / 1600">
+          <div className="ink-progress" aria-label={`本级经验 ${levelXp} / 1600`}>
             <div className="ink-progress-copy">
-              <span>本级修习</span>
-              <strong>1240 / 1600</strong>
+              <span>第 {level} 级修习</span>
+              <strong>{levelXp} / 1600</strong>
             </div>
-            <div className="ink-progress-track"><span /></div>
+            <div className="ink-progress-track"><span style={{ width: `${Math.max(2, levelXp / 16)}%` }} /></div>
           </div>
         </section>
         {children}

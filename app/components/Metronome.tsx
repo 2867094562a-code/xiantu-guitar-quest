@@ -33,7 +33,6 @@ export function Metronome() {
     if (!running) return;
     let beat = 0;
     click(beat);
-    setCurrentBeat(beat);
     intervalRef.current = window.setInterval(() => {
       beat = (beat + 1) % beats;
       setCurrentBeat(beat);
@@ -45,6 +44,11 @@ export function Metronome() {
   }, [running, bpm, beats, click]);
 
   const adjust = (amount: number) => setBpm((value) => Math.min(240, Math.max(30, value + amount)));
+
+  const toggleRunning = () => {
+    setCurrentBeat(0);
+    setRunning((value) => !value);
+  };
 
   const tapTempo = () => {
     const now = performance.now();
@@ -81,7 +85,7 @@ export function Metronome() {
           <div className="bpm-display"><strong>{bpm}</strong><span>BPM</span></div>
           <div className="bpm-buttons">
             <button className="icon-button" onClick={() => adjust(-1)} aria-label="减一 BPM" title="减一 BPM"><Minus /></button>
-            <button className="main-play" onClick={() => setRunning((value) => !value)} aria-label={running ? "暂停" : "开始"}>
+            <button className="main-play" onClick={toggleRunning} aria-label={running ? "暂停" : "开始"}>
               {running ? <Pause size={28} /> : <Play size={28} />}
             </button>
             <button className="icon-button" onClick={() => adjust(1)} aria-label="加一 BPM" title="加一 BPM"><Plus /></button>

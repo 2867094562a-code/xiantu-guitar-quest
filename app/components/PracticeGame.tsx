@@ -1,230 +1,370 @@
 "use client";
 
+import Link from "next/link";
 import {
+  ArrowRight,
+  Check,
   CircleCheck,
-  Clock3,
-  LockKeyhole,
+  Dumbbell,
+  Gauge,
+  Guitar,
+  Hand,
+  HeartPulse,
+  ListChecks,
+  Minus,
+  Music2,
   Pause,
   Play,
-  RefreshCcw,
+  Plus,
   RotateCcw,
   ShieldAlert,
   Sparkles,
-  Star,
+  TimerReset,
   Volume2,
-  Wind,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { chordPairs, songQuests, spiderPatterns } from "../data/curriculum";
 import { AppShell } from "./AppShell";
 
-const stages = [
-  { number: 1, title: "调音入场", state: "done", stars: 3 },
-  { number: 2, title: "节拍基础", state: "active", stars: 2 },
-  { number: 3, title: "开放和弦", state: "ready", stars: 1 },
-  { number: 4, title: "F 和弦试炼", state: "ready", stars: 0 },
-  { number: 5, title: "中文弹唱", state: "locked", stars: 0 },
-  { number: 6, title: "指弹进阶", state: "locked", stars: 0 },
-];
+type ExerciseId = "tune" | "spider" | "chord" | "rhythm" | "song" | "review";
+type SessionMode = "练习" | "休息";
 
-const songs = [
-  { name: "成都", goal: "开放和弦", progress: 100, stars: 3, state: "已通关" },
-  { name: "小幸运", goal: "八分节奏", progress: 68, stars: 2, state: "修习中" },
-  { name: "平凡之路", goal: "F 和弦", progress: 34, stars: 1, state: "待挑战" },
-  { name: "晴天", goal: "切分节奏", progress: 0, stars: 0, state: "未解锁" },
+const planMinutes: Record<number, Record<ExerciseId, number>> = {
+  60: { tune: 5, spider: 8, chord: 12, rhythm: 10, song: 20, review: 5 },
+  90: { tune: 7, spider: 12, chord: 18, rhythm: 15, song: 30, review: 8 },
+  120: { tune: 10, spider: 15, chord: 25, rhythm: 20, song: 40, review: 10 },
+};
+
+const taskMeta: Array<{ id: ExerciseId; title: string; detail: string; icon: typeof Guitar }> = [
+  { id: "tune", title: "调音与放松", detail: "逐弦调准，肩、腕与拇指不夹紧", icon: HeartPulse },
+  { id: "spider", title: "稳拍爬格子", detail: "短组练习，在酸胀出现前结束", icon: Hand },
+  { id: "chord", title: "和弦转换", detail: "用完整拍位换和弦，不追求蛮力", icon: Dumbbell },
+  { id: "rhythm", title: "节奏听练", detail: "四分与八分音符，口数拍子", icon: Gauge },
+  { id: "song", title: "中文歌分段", detail: "技术落进歌曲，只练一个明确段落", icon: Music2 },
+  { id: "review", title: "录音复盘", detail: "记录一处进步和一个明日重点", icon: ListChecks },
 ];
 
 function formatTime(seconds: number) {
-  return `00:${seconds.toString().padStart(2, "0")}`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes.toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+}
+
+function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
+  const [beat, setBeat] = useState(0);
+  const contextRef = useRef<AudioContext | null>(null);
+
+  const playClick = useCallback((index: number) => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!contextRef.current) contextRef.current = new AudioContextClass();
+    const context = contextRef.current;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = index % accentEvery === 0 ? 1120 : 760;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.24, context.currentTime + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.055);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.06);
+  }, [accentEvery]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let current = 0;
+    playClick(current);
+    const timer = window.setInterval(() => {
+      current += 1;
+      setBeat(current);
+      playClick(current);
+    }, 60000 / bpm);
+    return () => window.clearInterval(timer);
+  }, [bpm, enabled, playClick]);
+
+  useEffect(() => () => { contextRef.current?.close(); }, []);
+  return enabled ? beat : 0;
+}
+
+function NumberStepper({ label, value, min, max, step = 1, suffix, onChange }: {
+  label: string; value: number; min: number; max: number; step?: number; suffix: string; onChange: (value: number) => void;
+}) {
+  return (
+    <div className="number-stepper">
+      <span>{label}</span>
+      <div>
+        <button aria-label={`减少${label}`} onClick={() => onChange(Math.max(min, value - step))}><Minus size={15} /></button>
+        <strong>{value}<small>{suffix}</small></strong>
+        <button aria-label={`增加${label}`} onClick={() => onChange(Math.min(max, value + step))}><Plus size={15} /></button>
+      </div>
+    </div>
+  );
 }
 
 export function PracticeGame() {
-  const [running, setRunning] = useState(false);
-  const [seconds, setSeconds] = useState(45);
-  const [round, setRound] = useState(1);
-  const [mode, setMode] = useState<"练习" | "休息">("练习");
-  const [combo, setCombo] = useState(0);
+  const [goal, setGoal] = useState(60);
+  const [activeTask, setActiveTask] = useState<ExerciseId>("spider");
+  const [completed, setCompleted] = useState<ExerciseId[]>([]);
+  const [bpm, setBpm] = useState(60);
+  const [duration, setDuration] = useState(45);
+  const [sets, setSets] = useState(3);
+  const [rest, setRest] = useState(75);
+  const [pattern, setPattern] = useState("1234");
   const [pain, setPain] = useState(1);
-  const [finished, setFinished] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [sessionMode, setSessionMode] = useState<SessionMode>("练习");
+  const [secondsLeft, setSecondsLeft] = useState(45);
+  const [currentSet, setCurrentSet] = useState(1);
+  const [sessionDone, setSessionDone] = useState(false);
+  const [chordPair, setChordPair] = useState("em-am");
+  const [beatsPerChord, setBeatsPerChord] = useState(4);
+  const [chordDuration, setChordDuration] = useState(60);
+  const [cleanSwitches, setCleanSwitches] = useState(0);
+  const cleanSwitchesRef = useRef(0);
+  const beat = usePracticeClick(bpm, running && sessionMode === "练习", 4);
+  const selectedPair = chordPairs.find((pair) => pair.id === chordPair) ?? chordPairs[0];
+  const selectedPattern = spiderPatterns.find((item) => item.id === pattern) ?? spiderPatterns[0];
+
+  const plan = planMinutes[goal];
+  const totalDone = completed.reduce((sum, id) => sum + plan[id], 0);
+  const dailyProgress = Math.round((totalDone / goal) * 100);
+  const currentDuration = activeTask === "chord" ? chordDuration : duration;
+  const progress = sessionMode === "休息"
+    ? ((rest - secondsLeft) / rest) * 100
+    : ((currentDuration - secondsLeft) / currentDuration) * 100;
+
+  const currentChord = useMemo(() => {
+    const phase = Math.floor(beat / beatsPerChord) % 2;
+    return phase === 0 ? selectedPair.from : selectedPair.to;
+  }, [beat, beatsPerChord, selectedPair]);
+
+  useEffect(() => { cleanSwitchesRef.current = cleanSwitches; }, [cleanSwitches]);
+
+  const saveSession = useCallback((exerciseType: "spider" | "chord", exerciseId: string, seconds: number, extra?: { score?: number }) => {
+    fetch("/api/progress", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        exerciseType,
+        exerciseId,
+        durationSeconds: seconds,
+        bpm,
+        painScore: pain,
+        score: extra?.score,
+      }),
+    }).catch(() => undefined);
+  }, [bpm, pain]);
 
   useEffect(() => {
-    if (!running || finished) return;
+    if (!running || sessionDone) return;
     const timer = window.setInterval(() => {
-      setSeconds((current) => {
-        if (current > 1) {
-          if (mode === "练习") setCombo((value) => value + 1);
-          return current - 1;
-        }
+      setSecondsLeft((current) => {
+        if (current > 1) return current - 1;
 
-        if (mode === "练习" && round === 3) {
+        if (activeTask === "chord") {
           setRunning(false);
-          setFinished(true);
+          setSessionDone(true);
+          setCompleted((items) => items.includes("chord") ? items : [...items, "chord"]);
+          saveSession("chord", selectedPair.id, chordDuration, { score: cleanSwitchesRef.current });
           return 0;
         }
 
-        if (mode === "练习") {
-          setMode("休息");
-          setCombo(0);
-          return 75;
+        if (activeTask === "spider" && sessionMode === "练习" && currentSet === sets) {
+          setRunning(false);
+          setSessionDone(true);
+          setCompleted((items) => items.includes("spider") ? items : [...items, "spider"]);
+          saveSession("spider", selectedPattern.id, duration * sets);
+          return 0;
         }
 
-        setMode("练习");
-        setRound((value) => value + 1);
-        return 45;
+        if (activeTask === "spider" && sessionMode === "练习") {
+          setSessionMode("休息");
+          return rest;
+        }
+
+        setSessionMode("练习");
+        setCurrentSet((value) => value + 1);
+        return duration;
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [running, finished, mode, round]);
+  }, [activeTask, chordDuration, currentSet, duration, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets]);
 
   useEffect(() => {
-    if (pain >= 3) setRunning(false);
-  }, [pain]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Space" && running && activeTask === "chord") {
+        event.preventDefault();
+        setCleanSwitches((value) => value + 1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTask, running]);
 
-  const progress = useMemo(() => {
-    const duration = mode === "练习" ? 45 : 75;
-    return Math.min(100, Math.max(0, ((duration - seconds) / duration) * 100));
-  }, [mode, seconds]);
-
-  const reset = () => {
+  const resetSession = () => {
     setRunning(false);
-    setSeconds(45);
-    setRound(1);
-    setMode("练习");
-    setCombo(0);
-    setFinished(false);
+    setSessionMode("练习");
+    setCurrentSet(1);
+    setCleanSwitches(0);
+    setSessionDone(false);
+    setSecondsLeft(activeTask === "chord" ? chordDuration : duration);
+  };
+
+  const selectTask = (id: ExerciseId) => {
+    setActiveTask(id);
+    setRunning(false);
+    setSessionDone(false);
+    setSessionMode("练习");
+    setCurrentSet(1);
+    setCleanSwitches(0);
+    setSecondsLeft(id === "chord" ? chordDuration : duration);
+  };
+
+  const changeSpiderDuration = (value: number) => {
+    setDuration(value);
+    if (activeTask === "spider" && !running) setSecondsLeft(value);
+  };
+
+  const changeChordDuration = (value: number) => {
+    setChordDuration(value);
+    if (activeTask === "chord" && !running) setSecondsLeft(value);
+  };
+
+  const changePain = (value: number) => {
+    setPain(value);
+    if (value >= 3) setRunning(false);
+  };
+
+  const markComplete = (id: ExerciseId) => {
+    setCompleted((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
   };
 
   return (
     <AppShell
-      eyebrow="第一章 · 节拍基础"
-      title="今日闯关"
-      description="稳住拍子，也照顾双手。今天只完成一件事：用更少的力量，把每个音放在拍上。"
+      eyebrow="第一年 · 第 1 阶段"
+      title="今日修习"
+      description="先完成今天的一小步。速度服从放松，技术最终都要回到节拍和歌曲里。"
     >
-      <div className="practice-layout">
-        <aside className="stage-map" aria-label="修习关卡">
-          <div className="section-heading">
-            <span>修习路径</span>
-            <strong>2 / 24</strong>
+      <section className="today-overview">
+        <div className="today-heading">
+          <div>
+            <p className="eyebrow">今日安排</p>
+            <h2>{goal} 分钟日课</h2>
+            <span>已完成 {totalDone} 分钟 · {completed.length} / {taskMeta.length} 项</span>
           </div>
-          <ol>
-            {stages.map((stage) => (
-              <li key={stage.number} className={`stage ${stage.state}`}>
-                <div className="stage-node" aria-hidden="true">
-                  {stage.state === "locked" ? <LockKeyhole size={16} /> : stage.number}
-                </div>
-                <div className="stage-copy">
-                  <strong>{stage.title}</strong>
-                  <span className="stage-stars" aria-label={`${stage.stars} 星`}>
-                    {[0, 1, 2].map((star) => (
-                      <Star key={star} size={13} fill={star < stage.stars ? "currentColor" : "none"} />
-                    ))}
-                  </span>
-                </div>
-              </li>
+          <div className="segmented-control goal-control" aria-label="选择今日练习时长">
+            {[60, 90, 120].map((minutes) => (
+              <button key={minutes} className={goal === minutes ? "active" : ""} onClick={() => setGoal(minutes)}>{minutes} 分钟</button>
             ))}
-          </ol>
-        </aside>
-
-        <section className="challenge-panel" aria-labelledby="challenge-title">
-          <header className="challenge-header">
-            <div>
-              <p>第 8 关</p>
-              <h2 id="challenge-title">稳拍爬格子</h2>
-              <span>60 BPM · 45 秒 × 3 组 · 每拍一个音</span>
-            </div>
-            <div className="challenge-actions">
-              <button
-                className="icon-button primary"
-                onClick={() => pain < 3 && setRunning((value) => !value)}
-                aria-label={running ? "暂停练习" : "开始练习"}
-                title={running ? "暂停练习" : "开始练习"}
-                disabled={finished || pain >= 3}
-              >
-                {running ? <Pause size={21} /> : <Play size={21} />}
-              </button>
-              <button className="icon-button" onClick={reset} aria-label="重置本关" title="重置本关">
-                <RotateCcw size={19} />
-              </button>
-            </div>
-          </header>
-
-          <div className="game-hud">
-            <div><span>连击</span><strong>{combo}</strong></div>
-            <div className="hud-timer"><span>{mode}</span><strong>{formatTime(seconds)}</strong></div>
-            <div><span>组数</span><strong>{round} / 3</strong></div>
-            <div><span>稳定率</span><strong>{running ? "96%" : "--"}</strong></div>
           </div>
+        </div>
+        <div className="daily-progress"><span style={{ width: `${dailyProgress}%` }} /></div>
+        <div className="today-tasks">
+          {taskMeta.map((task, index) => {
+            const Icon = task.icon;
+            const done = completed.includes(task.id);
+            const active = activeTask === task.id;
+            return (
+              <button key={task.id} className={`${active ? "active " : ""}${done ? "done" : ""}`} onClick={() => selectTask(task.id)}>
+                <span className="task-order">{done ? <Check size={16} /> : index + 1}</span>
+                <Icon size={18} />
+                <span className="task-copy"><strong>{task.title}</strong><small>{plan[task.id]} 分钟</small></span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-          <div className={`fretboard-game ${running ? "is-running" : ""}`} aria-label="六弦爬格子节奏轨道">
-            <div className="string-labels" aria-hidden="true">
-              {["E", "B", "G", "D", "A", "E"].map((note, index) => <span key={`${note}-${index}`}>{note}</span>)}
+      {(activeTask === "spider" || activeTask === "chord") ? (
+        <section className="training-workbench">
+          <aside className="training-settings">
+            <div className="panel-title">
+              <div><p className="eyebrow">自定义练习</p><h2>{activeTask === "spider" ? "爬格子参数" : "和弦转换参数"}</h2></div>
+              <TimerReset size={22} />
             </div>
-            <div className="fretboard-lanes">
-              <span className="hit-line" />
-              <span className="beat-wave wave-one" />
-              <span className="beat-wave wave-two" />
-              {[1, 2, 3, 4].map((finger) => (
-                <span key={finger} className={`note-token note-${finger}`}>{finger}</span>
-              ))}
-              <div className="idle-message">
-                {finished ? <><CircleCheck size={20} />本关完成，获得三枚墨印</> : running ? "听拍 · 呼吸 · 放松拇指" : "按下开始，先听一小节再进入"}
+
+            <NumberStepper label="节拍" value={bpm} min={30} max={120} suffix=" BPM" onChange={setBpm} />
+            {activeTask === "spider" ? (
+              <>
+                <NumberStepper label="每组时间" value={duration} min={20} max={120} step={5} suffix=" 秒" onChange={changeSpiderDuration} />
+                <NumberStepper label="组数" value={sets} min={1} max={6} suffix=" 组" onChange={setSets} />
+                <NumberStepper label="组间休息" value={rest} min={30} max={120} step={5} suffix=" 秒" onChange={setRest} />
+                <label className="field-select"><span>指序</span><select value={pattern} onChange={(event) => setPattern(event.target.value)}>{spiderPatterns.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+                <button className="prescription-button" onClick={() => { setBpm(60); setDuration(45); setSets(3); setRest(75); setPattern("1234"); }}>恢复当前建议：60 BPM · 45 秒 × 3</button>
+              </>
+            ) : (
+              <>
+                <label className="field-select"><span>和弦组合</span><select value={chordPair} onChange={(event) => setChordPair(event.target.value)}>{chordPairs.map((pair) => <option key={pair.id} value={pair.id}>{pair.from} → {pair.to} · Lv.{pair.level}</option>)}</select></label>
+                <label className="field-select"><span>每个和弦保持</span><select value={beatsPerChord} onChange={(event) => setBeatsPerChord(Number(event.target.value))}><option value={4}>4 拍</option><option value={2}>2 拍</option><option value={1}>1 拍</option></select></label>
+                <NumberStepper label="练习时间" value={chordDuration} min={30} max={300} step={15} suffix=" 秒" onChange={changeChordDuration} />
+                <p className="setting-tip">{selectedPair.tip}</p>
+              </>
+            )}
+          </aside>
+
+          <div className="practice-console">
+            <header className="console-header">
+              <div>
+                <p>{activeTask === "spider" ? `第 ${currentSet} / ${sets} 组 · ${sessionMode}` : `${selectedPair.from} ↔ ${selectedPair.to}`}</p>
+                <h2>{activeTask === "spider" ? selectedPattern.label : "听拍完成转换"}</h2>
+                <span>{bpm} BPM · 每拍一次点击{activeTask === "chord" ? ` · 每 ${beatsPerChord} 拍换和弦` : " · 每拍一个音"}</span>
               </div>
+              <div className="challenge-actions">
+                <button className="icon-button primary" disabled={pain >= 3 || sessionDone} onClick={() => setRunning((value) => !value)} aria-label={running ? "暂停" : "开始"}>{running ? <Pause /> : <Play />}</button>
+                <button className="icon-button" onClick={resetSession} aria-label="重置"><RotateCcw /></button>
+              </div>
+            </header>
+
+            <div className={`beat-stage ${running ? "running" : ""} ${sessionMode === "休息" ? "resting" : ""}`}>
+              <div className="beat-orbit" aria-hidden="true"><span /><span /><span /></div>
+              {activeTask === "spider" ? (
+                <div className="finger-sequence">
+                  {selectedPattern.value.split(" ").map((finger, index) => <span key={`${finger}-${index}`} className={beat % 4 === index && running ? "active" : ""}>{finger}</span>)}
+                </div>
+              ) : (
+                <div className="chord-switch-display">
+                  <span>现在按</span>
+                  <strong>{running ? currentChord : selectedPair.from}</strong>
+                  <small>下一个：{currentChord === selectedPair.from ? selectedPair.to : selectedPair.from}</small>
+                </div>
+              )}
+              <div className="console-timer"><span>{sessionDone ? "完成" : sessionMode}</span><strong>{formatTime(secondsLeft)}</strong></div>
+              <div className="beat-dots" aria-label={`第 ${(beat % 4) + 1} 拍`}>{[0, 1, 2, 3].map((index) => <span key={index} className={running && beat % 4 === index ? "active" : ""}>{index + 1}</span>)}</div>
+              {activeTask === "chord" && (
+                <button className="switch-counter" disabled={!running} onClick={() => setCleanSwitches((value) => value + 1)}><Check size={18} />干净完成一次 <strong>{cleanSwitches}</strong></button>
+              )}
+              {sessionDone && <div className="completion-stamp"><CircleCheck size={24} />本项完成</div>}
             </div>
-          </div>
+            <div className="session-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>
 
-          <div className="session-progress" aria-label={`本组进度 ${Math.round(progress)}%`}>
-            <span style={{ width: `${progress}%` }} />
-          </div>
-
-          <div className="feedback-grid">
-            <div><Clock3 size={20} /><span>节拍</span><strong>{running ? "稳定" : "待测"}</strong></div>
-            <div><Volume2 size={20} /><span>声音</span><strong>{running ? "清晰" : "待测"}</strong></div>
-            <div><Wind size={20} /><span>放松</span><strong>{pain < 3 ? "良好" : "暂停"}</strong></div>
-          </div>
-
-          <div className={pain >= 3 ? "pain-check warning" : "pain-check"}>
-            <div className="pain-copy">
-              <span>大鱼际酸胀</span>
-              <strong>{pain} / 10</strong>
-              <small>{pain < 3 ? "当前可继续，保持轻按" : "已暂停本动作，今天改练右手或听力"}</small>
+            <div className={pain >= 3 ? "pain-check warning" : "pain-check compact"}>
+              <div className="pain-copy">
+                <span>大鱼际酸胀</span><strong>{pain} / 10</strong>
+                <small>{pain < 3 ? "0-2 可继续，保持轻按；你目前一分钟会酸，优先用 45 秒短组。" : "已自动暂停。今天改练右手节奏、听力或歌曲结构。"}</small>
+              </div>
+              <div><input aria-label="大鱼际酸胀程度" type="range" min="0" max="10" value={pain} onChange={(event) => changePain(Number(event.target.value))} /><div className="pain-scale"><span>无感</span><span>注意 3</span><span>停止</span></div></div>
+              {pain >= 3 ? <ShieldAlert size={24} /> : <Volume2 size={22} />}
             </div>
-            <input
-              aria-label="大鱼际酸胀程度"
-              type="range"
-              min="0"
-              max="10"
-              value={pain}
-              onChange={(event) => setPain(Number(event.target.value))}
-            />
-            <div className="pain-scale" aria-hidden="true"><span>无感</span><span>注意 3</span><span>停止</span></div>
-            {pain >= 3 && <ShieldAlert size={24} />}
           </div>
         </section>
-      </div>
-
-      <section className="song-quests" aria-labelledby="song-quests-title">
-        <div className="section-heading">
+      ) : (
+        <section className="simple-task-panel">
+          <div className="simple-task-icon">{activeTask === "tune" ? <HeartPulse /> : activeTask === "rhythm" ? <Gauge /> : activeTask === "song" ? <Music2 /> : <ListChecks />}</div>
           <div>
-            <span>中文流行歌关卡</span>
-            <h2 id="song-quests-title">让技术落进真正想唱的歌里</h2>
+            <p className="eyebrow">今日第 {taskMeta.findIndex((item) => item.id === activeTask) + 1} 项</p>
+            <h2>{taskMeta.find((item) => item.id === activeTask)?.title}</h2>
+            <p>{taskMeta.find((item) => item.id === activeTask)?.detail}</p>
+            {activeTask === "tune" && <Link href="/tuner" className="secondary-action">打开独立调音器 <ArrowRight size={16} /></Link>}
+            {activeTask === "rhythm" && <Link href="/metronome" className="secondary-action">打开独立节拍器 <ArrowRight size={16} /></Link>}
+            {activeTask === "song" && <div className="next-song"><span>本周歌曲</span><strong>《{songQuests[1].title}》</strong><small>{songQuests[1].trainingBpm} BPM · {songQuests[1].focus}</small><Link href="/songs">进入分级曲库</Link></div>}
+            {activeTask === "review" && <textarea className="review-note" placeholder="今天最稳定的一处……&#10;明天只改进……" aria-label="今日练习复盘" />}
           </div>
-          <button className="text-button">查看曲库 <RefreshCcw size={15} /></button>
-        </div>
-        <div className="song-grid">
-          {songs.map((song) => (
-            <article key={song.name} className={song.state === "未解锁" ? "song-card locked" : "song-card"}>
-              <div className="song-number">{song.state === "未解锁" ? <LockKeyhole size={18} /> : <Sparkles size={18} />}</div>
-              <div className="song-copy">
-                <h3>《{song.name}》</h3>
-                <p>{song.goal}</p>
-                <div className="song-progress"><span style={{ width: `${song.progress}%` }} /></div>
-              </div>
-              <div className="song-meta">
-                <span>{song.state}</span>
-                <span>{song.stars} / 3 星</span>
-              </div>
-            </article>
-          ))}
-        </div>
+          <button className={completed.includes(activeTask) ? "complete-task done" : "complete-task"} onClick={() => markComplete(activeTask)}>{completed.includes(activeTask) ? <><Check size={18} />已完成</> : <>完成本项 <ArrowRight size={17} /></>}</button>
+        </section>
+      )}
+
+      <section className="next-milestone">
+        <div><Sparkles size={20} /><span>当前里程碑</span><strong>开放和弦与稳拍 · 第 1-4 周</strong></div>
+        <p>本周验收：C-G-Am-Em 循环 4 轮不断拍，并完成一首慢速中文歌。完整的两年路线已拆分为弹唱与指弹两条修习线。</p>
+        <Link href="/paths">查看修习路线 <ArrowRight size={16} /></Link>
       </section>
     </AppShell>
   );
