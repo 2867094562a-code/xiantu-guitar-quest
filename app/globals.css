@@ -502,6 +502,7 @@ select, input[type="text"], input[type="number"], textarea {
 .number-stepper button:first-child { border-right: 1px solid var(--line); }
 .number-stepper button:last-child { border-left: 1px solid var(--line); }
 .number-stepper button:hover { background: var(--ink); color: var(--white-ink); }
+.number-stepper button:disabled, .prescription-button:disabled, .field-select select:disabled { opacity: 0.42; cursor: not-allowed; }
 .number-stepper strong { text-align: center; font-family: Georgia, serif; font-size: 18px; }
 .number-stepper small { margin-left: 3px; color: var(--ink-soft); font: 10px inherit; }
 .field-select { border-top: 1px solid var(--line); padding: 13px 0; display: grid; gap: 7px; }

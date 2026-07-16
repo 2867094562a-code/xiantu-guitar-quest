@@ -84,16 +84,16 @@ function usePracticeClick(bpm: number, enabled: boolean, accentEvery = 4) {
   return enabled ? beat : 0;
 }
 
-function NumberStepper({ label, value, min, max, step = 1, suffix, onChange }: {
-  label: string; value: number; min: number; max: number; step?: number; suffix: string; onChange: (value: number) => void;
+function NumberStepper({ label, value, min, max, step = 1, suffix, disabled = false, onChange }: {
+  label: string; value: number; min: number; max: number; step?: number; suffix: string; disabled?: boolean; onChange: (value: number) => void;
 }) {
   return (
     <div className="number-stepper">
       <span>{label}</span>
       <div>
-        <button aria-label={`减少${label}`} onClick={() => onChange(Math.max(min, value - step))}><Minus size={15} /></button>
+        <button disabled={disabled} aria-label={`减少${label}`} onClick={() => onChange(Math.max(min, value - step))}><Minus size={15} /></button>
         <strong>{value}<small>{suffix}</small></strong>
-        <button aria-label={`增加${label}`} onClick={() => onChange(Math.min(max, value + step))}><Plus size={15} /></button>
+        <button disabled={disabled} aria-label={`增加${label}`} onClick={() => onChange(Math.min(max, value + step))}><Plus size={15} /></button>
       </div>
     </div>
   );
@@ -281,20 +281,20 @@ export function PracticeGame() {
               <TimerReset size={22} />
             </div>
 
-            <NumberStepper label="节拍" value={bpm} min={30} max={120} suffix=" BPM" onChange={setBpm} />
+            <NumberStepper label="节拍" value={bpm} min={30} max={120} suffix=" BPM" disabled={running} onChange={setBpm} />
             {activeTask === "spider" ? (
               <>
-                <NumberStepper label="每组时间" value={duration} min={20} max={120} step={5} suffix=" 秒" onChange={changeSpiderDuration} />
-                <NumberStepper label="组数" value={sets} min={1} max={6} suffix=" 组" onChange={setSets} />
-                <NumberStepper label="组间休息" value={rest} min={30} max={120} step={5} suffix=" 秒" onChange={setRest} />
-                <label className="field-select"><span>指序</span><select value={pattern} onChange={(event) => setPattern(event.target.value)}>{spiderPatterns.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-                <button className="prescription-button" onClick={() => { setBpm(60); setDuration(45); setSets(3); setRest(75); setPattern("1234"); }}>恢复当前建议：60 BPM · 45 秒 × 3</button>
+                <NumberStepper label="每组时间" value={duration} min={20} max={120} step={5} suffix=" 秒" disabled={running} onChange={changeSpiderDuration} />
+                <NumberStepper label="组数" value={sets} min={1} max={6} suffix=" 组" disabled={running} onChange={setSets} />
+                <NumberStepper label="组间休息" value={rest} min={30} max={120} step={5} suffix=" 秒" disabled={running} onChange={setRest} />
+                <label className="field-select"><span>指序</span><select disabled={running} value={pattern} onChange={(event) => setPattern(event.target.value)}>{spiderPatterns.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+                <button disabled={running} className="prescription-button" onClick={() => { setRunning(false); setBpm(60); changeSpiderDuration(45); setSets(3); setRest(75); setPattern("1234"); setCurrentSet(1); setSessionMode("练习"); setSessionDone(false); }}>恢复当前建议：60 BPM · 45 秒 × 3</button>
               </>
             ) : (
               <>
-                <label className="field-select"><span>和弦组合</span><select value={chordPair} onChange={(event) => setChordPair(event.target.value)}>{chordPairs.map((pair) => <option key={pair.id} value={pair.id}>{pair.from} → {pair.to} · Lv.{pair.level}</option>)}</select></label>
-                <label className="field-select"><span>每个和弦保持</span><select value={beatsPerChord} onChange={(event) => setBeatsPerChord(Number(event.target.value))}><option value={4}>4 拍</option><option value={2}>2 拍</option><option value={1}>1 拍</option></select></label>
-                <NumberStepper label="练习时间" value={chordDuration} min={30} max={300} step={15} suffix=" 秒" onChange={changeChordDuration} />
+                <label className="field-select"><span>和弦组合</span><select disabled={running} value={chordPair} onChange={(event) => setChordPair(event.target.value)}>{chordPairs.map((pair) => <option key={pair.id} value={pair.id}>{pair.from} → {pair.to} · Lv.{pair.level}</option>)}</select></label>
+                <label className="field-select"><span>每个和弦保持</span><select disabled={running} value={beatsPerChord} onChange={(event) => setBeatsPerChord(Number(event.target.value))}><option value={4}>4 拍</option><option value={2}>2 拍</option><option value={1}>1 拍</option></select></label>
+                <NumberStepper label="练习时间" value={chordDuration} min={30} max={300} step={15} suffix=" 秒" disabled={running} onChange={changeChordDuration} />
                 <p className="setting-tip">{selectedPair.tip}</p>
               </>
             )}

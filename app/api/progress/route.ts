@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { ensureUser } from "../../server/current-user";
 import { getDb } from "../../../db";
-import { courseProgress, practiceSessions } from "../../../db/schema";
+import { courseProgress, practiceSessions, users } from "../../../db/schema";
 
 export async function GET() {
   const identity = await getChatGPTUser();
@@ -39,6 +39,12 @@ export async function POST(request: Request) {
 
   const db = getDb();
   const sessionId = crypto.randomUUID();
+  const previousSession = await db.select({ completedAt: practiceSessions.completedAt })
+    .from(practiceSessions)
+    .where(eq(practiceSessions.userId, user.id))
+    .orderBy(desc(practiceSessions.completedAt))
+    .limit(1);
+  const completedAt = new Date();
   await db.insert(practiceSessions).values({
     id: sessionId,
     userId: user.id,
@@ -48,8 +54,23 @@ export async function POST(request: Request) {
     bpm: body.bpm ? Math.round(body.bpm) : null,
     score: body.score ? Math.round(body.score) : null,
     painScore: body.painScore ?? null,
-    completedAt: new Date(),
+    completedAt,
   });
+
+  const today = completedAt.toISOString().slice(0, 10);
+  const yesterday = new Date(completedAt.getTime() - 86_400_000).toISOString().slice(0, 10);
+  const previousDay = previousSession[0]?.completedAt.toISOString().slice(0, 10);
+  const streakDays = previousDay === today
+    ? Math.max(1, user.streakDays)
+    : previousDay === yesterday ? user.streakDays + 1 : 1;
+  const earnedXp = Math.max(10, Math.min(180, Math.round(body.durationSeconds / 6)));
+  const totalXp = user.totalXp + earnedXp;
+  await db.update(users).set({
+    streakDays,
+    totalXp,
+    currentLevel: Math.floor(totalXp / 1600) + 1,
+    updatedAt: completedAt,
+  }).where(eq(users.id, user.id));
 
   if (body.track && body.stageId) {
     const existing = await db.select().from(courseProgress).where(and(
