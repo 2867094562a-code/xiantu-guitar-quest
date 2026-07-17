@@ -415,7 +415,7 @@ export function PracticeGame() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTask, celebrate, chordDuration, currentSet, duration, finishStrumSession, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets, stopChordRecognition, strumDuration]);
+  }, [activeTask, celebrate, chordDuration, currentSet, duration, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets, stopChordRecognition, strumDuration]);
 
   useEffect(() => {
     if (activeTask !== "strum" || !running || isPreparing || sessionDone || secondsLeft > 0) return;
