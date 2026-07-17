@@ -179,6 +179,7 @@ export function PracticeGame() {
   const chordAiTargetRef = useRef({ phase: -1, chord: "" });
   const recognizedStrumPhaseRef = useRef(-1);
   const lastOnsetCountRef = useRef(0);
+  const strumFinishLockRef = useRef(false);
   const isPreparing = preparationSeconds > 0;
   const beat = usePracticeClick(bpm, running && sessionMode === "练习" && !isPreparing, 4, activeTask === "strum" ? 2 : 1);
   const selectedPair = chordPairs.find((pair) => pair.id === chordPair) ?? chordPairs[0];
@@ -356,9 +357,11 @@ export function PracticeGame() {
   }, [bpm, pain]);
 
   const finishStrumSession = useCallback(() => {
-    if (sessionDone) return;
+    if (sessionDone || strumFinishLockRef.current) return;
+    strumFinishLockRef.current = true;
     setRunning(false);
     setPreparationSeconds(0);
+    setSecondsLeft(0);
     stopStrumRecognition();
     setSessionDone(true);
     setCompleted((items) => items.includes("strum") ? items : [...items, "strum"]);
@@ -374,6 +377,10 @@ export function PracticeGame() {
 
   useEffect(() => {
     if (!running || sessionDone || isPreparing) return;
+    if (activeTask === "strum") {
+      const timer = window.setInterval(() => setSecondsLeft((current) => Math.max(0, current - 1)), 1_000);
+      return () => window.clearInterval(timer);
+    }
     const timer = window.setInterval(() => {
       setSecondsLeft((current) => {
         if (current > 1) return current - 1;
@@ -384,11 +391,6 @@ export function PracticeGame() {
           setSessionDone(true);
           setCompleted((items) => items.includes("chord") ? items : [...items, "chord"]);
           saveSession("chord", selectedPair.id, chordDuration, { score: cleanSwitchesRef.current });
-          return 0;
-        }
-
-        if (activeTask === "strum") {
-          finishStrumSession();
           return 0;
         }
 
@@ -415,6 +417,11 @@ export function PracticeGame() {
     return () => window.clearInterval(timer);
   }, [activeTask, celebrate, chordDuration, currentSet, duration, finishStrumSession, isPreparing, rest, running, saveSession, selectedPair.id, selectedPattern.id, sessionDone, sessionMode, sets, stopChordRecognition, strumDuration]);
 
+  useEffect(() => {
+    if (activeTask !== "strum" || !running || isPreparing || sessionDone || secondsLeft > 0) return;
+    finishStrumSession();
+  }, [activeTask, finishStrumSession, isPreparing, running, secondsLeft, sessionDone]);
+
   const resetSession = () => {
     setRunning(false);
     stopChordRecognition();
@@ -431,6 +438,7 @@ export function PracticeGame() {
     setStrumHits(0);
     setStrumExtras(0);
     setPreparationSeconds(0);
+    strumFinishLockRef.current = false;
     resetFeedback();
     setSessionDone(false);
     setSecondsLeft(activeTask === "chord" ? chordDuration : activeTask === "strum" ? strumDuration : duration);
@@ -448,6 +456,7 @@ export function PracticeGame() {
     setStrumHits(0);
     setStrumExtras(0);
     setPreparationSeconds(0);
+    strumFinishLockRef.current = false;
     resetFeedback();
     setSecondsLeft(id === "chord" ? chordDuration : id === "strum" ? strumDuration : duration);
   };
@@ -493,6 +502,7 @@ export function PracticeGame() {
     if (activeTask === "strum") {
       recognizedStrumPhaseRef.current = -1;
       lastOnsetCountRef.current = 0;
+      strumFinishLockRef.current = false;
       const microphoneReady = await startStrumRecognition();
       if (!microphoneReady) return;
     }
@@ -585,7 +595,6 @@ export function PracticeGame() {
               </div>
               <div className="challenge-actions">
                 <button className="icon-button primary" disabled={(pain >= 3 && activeTask !== "strum") || sessionDone} onClick={toggleSession} aria-label={running ? "暂停" : activeTask === "chord" || activeTask === "strum" ? "开启麦克风并开始" : "开始"}>{running ? <Pause /> : activeTask === "chord" || activeTask === "strum" ? <Mic /> : <Play />}</button>
-                {activeTask === "strum" && running && !isPreparing && <button className="secondary-action finish-strum-button" onClick={finishStrumSession}><CircleCheck size={16} />完成本轮</button>}
                 <button className="icon-button" onClick={resetSession} aria-label="重置"><RotateCcw /></button>
               </div>
             </header>
@@ -627,12 +636,15 @@ export function PracticeGame() {
                 </div>
               )}
               {activeTask === "strum" && (
-                <div className="strum-judgement">
-                  <span className="mic-state">{strumListening ? <Mic size={16} /> : <MicOff size={16} />}{strumCalibration === "calibrating" ? "正在测底噪" : strumListening ? "正在听扫弦" : "麦克风未开启"}</span>
-                  <span><small>输入信号</small><strong>{strumSignal}%</strong></span>
-                  <span><small>拍点命中</small><strong>{strumHits}</strong></span>
-                  <span className={strumExtras ? "warn" : ""}><small>空拍误扫</small><strong>{strumExtras}</strong></span>
-                </div>
+                <>
+                  <div className="strum-judgement">
+                    <span className="mic-state">{strumListening ? <Mic size={16} /> : <MicOff size={16} />}{strumCalibration === "calibrating" ? "正在测底噪" : strumListening ? "正在听扫弦" : "麦克风未开启"}</span>
+                    <span><small>输入信号</small><strong>{strumSignal}%</strong></span>
+                    <span><small>拍点命中</small><strong>{strumHits}</strong></span>
+                    <span className={strumExtras ? "warn" : ""}><small>空拍误扫</small><strong>{strumExtras}</strong></span>
+                  </div>
+                  {running && !isPreparing && <button className="strum-finish-action" onClick={finishStrumSession}><CircleCheck size={16} />完成本轮并记录</button>}
+                </>
               )}
               {sessionDone && <div className="completion-stamp"><CircleCheck size={24} />本项完成</div>}
             </div>
