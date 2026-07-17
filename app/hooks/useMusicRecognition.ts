@@ -337,7 +337,7 @@ export function useMusicRecognition(kind: RecognitionKind, candidates: string[] 
             signalEvidenceRef.current = Math.min(2_500, signalEvidenceRef.current + 75);
             lastSignalAtRef.current = timestamp;
             if (latestConfigRef.current.kind === "attack") {
-              const rising = rms > Math.max(threshold * 1.22, previousRmsRef.current * 1.42);
+              const rising = rms > Math.max(threshold * 1.12, previousRmsRef.current * 1.18) && rms - previousRmsRef.current > threshold * 0.2;
               if (rising && timestamp - lastOnsetRef.current > 135) {
                 lastOnsetRef.current = timestamp;
                 setOnsetCount((value) => value + 1);
